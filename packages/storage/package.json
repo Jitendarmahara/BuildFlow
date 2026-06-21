@@ -1,0 +1,21 @@
+{
+  "name": "@repo/storage",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "scripts": {
+    "test:integration": "bun --env-file=../db/.env --env-file=.env test-integration.ts"
+  },
+  "exports":{
+    "./Awsclient": "./index.ts"
+  },
+  "dependencies": {
+    "@repo/db" :"workspace:*"
+  }
+}
