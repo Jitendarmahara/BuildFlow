@@ -1,3 +1,4 @@
+import { SIDECAR_PORT , VITE_PORT , IMAGE_REGISTRY , PROJECTS_NAMESPACE } from "./config";
 export function pvcManifest(projectId: string){
     return {
         apiVersion: "v1",
@@ -9,10 +10,8 @@ export function pvcManifest(projectId: string){
         }
     }
 }
-const REGISTRY = process.env.REGISTRY || "";
-const SIDECAR_PORT = 4000;
-const VITE_PORT = 5137;
-export function deploymentManifest(projectId: string){
+
+export function deploymentManifest(projectId: string , replicas: number){
     const app = `porject-${projectId}`;
     const worksapce = {name: "workspace" , mountpath : "/workspace"};
 
@@ -21,7 +20,7 @@ export function deploymentManifest(projectId: string){
         kind:"Deployment",
         metadata: {name : app , labels : {app}},
         spec: {
-            replicas: 1,
+            replicas,
             selector : {matchLabels: {app}},
             template: {
                 metadata : {labels: {app}},
@@ -35,7 +34,7 @@ export function deploymentManifest(projectId: string){
                     containers: [
                         {
                             name: "agent",
-                            image: `${REGISTRY}/lovable-agent:latest`,
+                            image: `${IMAGE_REGISTRY}/lovable-agent:latest`,
                             env: [
                                 {name: "PROJECT_ID" , value : projectId},
                                 {name: "SIDECAR_URL" , value : `http://localhost:${SIDECAR_PORT}`}
@@ -44,13 +43,13 @@ export function deploymentManifest(projectId: string){
                         },
                         {
                             name:"preview-build",
-                            image:`${REGISTRY}/lovable-sidecar:latest`,
+                            image:`${IMAGE_REGISTRY}/lovable-sidecar:latest`,
                             ports : [{containerPort: VITE_PORT}],
                             volumeMounts: [worksapce],
                         },
                         {
                             name: "storage-sidecar",
-                            image : `${REGISTRY}/lovable-sidecar:latest`,
+                            image : `${IMAGE_REGISTRY}/lovable-sidecar:latest`,
                             env: [{name: "project_ID" , value : projectId}],
                             envFrom :[{secretRef: {name: "project-secrets"}}],
                             volumeMounts: [worksapce],
@@ -66,6 +65,10 @@ export function  serviceManifest(projectId:string){
     return {
         apiVersion : "v1",
         kind : "Service",
-        metadata : {name : `preview-${projectId}`}
+        metadata : {name : `preview-${projectId}`},
+        spec: {
+            selector : {app : `project-${projectId}`}, // mount to this pod with this projectid
+            ports: [{port: VITE_PORT , targetPort : VITE_PORT}]
+        }
     }
 }
