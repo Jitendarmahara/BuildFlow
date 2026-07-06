@@ -11,7 +11,7 @@ Default to using Bun instead of Node.js.
 
 ## APIs
 
-- `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
+- This app deliberately uses `express` for HTTP routing instead of `Bun.serve()` — an intentional exception to the repo-wide default, decided 2026-07-03 (same as primary-backend). It exposes the internal control endpoints (`POST /boot`, `/sleep`, `/killproject`, `GET /health`) that primary-backend calls. Still run it with `bun index.ts`, not `node`.
 - `bun:sqlite` for SQLite. Don't use `better-sqlite3`.
 - `Bun.redis` for Redis. Don't use `ioredis`.
 - `Bun.sql` for Postgres. Don't use `pg` or `postgres.js`.
