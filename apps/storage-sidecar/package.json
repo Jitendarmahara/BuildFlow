@@ -1,0 +1,18 @@
+{
+  "name": "@repo/storage-sidecar",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "@repo/storage": "workspace:*",
+    "@types/express": "^5.0.6",
+    "express": "^5.2.1"
+  }
+}
