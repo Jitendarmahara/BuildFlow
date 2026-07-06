@@ -56,7 +56,9 @@ enum Role{
   assistant
 }
 enum Status{
+  provisioning
   idle
   running
   sleeping
+  failed
 }
