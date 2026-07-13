@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client";
+export {MessageKind} from "./generated/prisma/client"
 
 // 1. Tell TypeScript the global may hold our client
 const globalForPrisma = globalThis as unknown as {
@@ -18,3 +19,4 @@ export const client =
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = client;
 }
+
