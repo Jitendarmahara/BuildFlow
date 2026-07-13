@@ -86,8 +86,8 @@ router.post("/projects", Middleware, async (req, res) => {
     const project = await tx.project.create({
       data: { title, userId: req.userId!, status: "provisioning" },
     });
-    await tx.conversation.create({
-      data: { projectId: project.id, content: prompt, role: "user" },
+    await tx.message.create({
+      data: { projectId: project.id, content: prompt, kind:"user" },
     });
     return project;
   });
