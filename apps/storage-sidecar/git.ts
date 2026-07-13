@@ -1,17 +1,21 @@
 import { $ } from "bun";
 import { WORKSPACE_DIR } from "./config";
 
-const git = (...args: string[]) => $`git ${args}`.cwd(WORKSPACE_DIR).quiet();
+export const git = (...args: string[]) => $`git ${args}`.cwd(WORKSPACE_DIR).quiet();
 
 export async function isRepo(): Promise<boolean> {
   return Bun.file(`${WORKSPACE_DIR}/.git/HEAD`).exists();
 }
+export async function setIdentity(){
+    await git("config" , "user.email" , "agent@lovable.dev")
+    await git("config" , "user.name" , "lovable")
+}
 
 export async function initRepo() {
-  await git("init", "-q");
-  await git("config", "user.email", "agent@lovable.dev");
-  await git("config", "user.name", "lovable");
-  await commit("initial");
+  await git("init", "-q" , "-b" , "main");
+  await setIdentity();
+  await git ("add" , "-A");
+  await git("commit" , "--allow-empty" , "-q" , "-m" , "initial");
 }
 export async function commit(message: string): Promise<boolean> {
   await git("add", "-A");
@@ -38,6 +42,10 @@ export async function  changeSince(sha: string): Promise<Change[]>{
 export async function bundleTo(file: string){
     await git("bundle" , "create" , file , "--all");  // -all inclued history + our refs
 }
-export async function cloneFromBundle(file:string){
-    await $`git clone -q ${file} ${WORKSPACE_DIR}`.quiet();
+
+export async function restoreFromBundle(file:string){
+    await git ("init" , "-q" , "-b" , "main");
+    await setIdentity();
+    await git("fetch" , "-q" , file , "main");
+    await git ("reset" , "--hard" , "FETCH_HEAD")
 }
