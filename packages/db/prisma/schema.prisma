@@ -64,7 +64,7 @@ model File{
 enum Status{
   provisioning
   idle
-  runningor
+  running
   sleeping
   failed
 }
