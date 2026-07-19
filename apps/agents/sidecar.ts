@@ -40,5 +40,6 @@ export const sidecar = {
     renameFile : (from:string , to:string)=> post("/rename_file" , {from , to}) ,
     saveMessage : (input:SaveMessageInput) => post("/conversation" , input),
     getConversation : ()=> get("/conversation"),
-    commit: (message: string) => post("/commit", { message }),
+    commit: (message: string) =>
+        post("/commit", { message }) as Promise<{ ok: boolean; committed: boolean; sha: string | null }>,
 }

@@ -5,7 +5,7 @@ import { executeTool, tools } from "./tools";
 
 
 type Msg = OpenAI.ChatCompletionMessageParam;
-export type Emit = (event:{type:string ; [k:string]:any})=>void
+export type Emit = (event:{type:string ; [k:string]:any})=>void | Promise<void>
 export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit){
     // making only a specific numbner of llm calls;
     for(let turn =0 ; turn < MAX_TURNS ; turn++){
@@ -42,16 +42,16 @@ export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit)
         }as Msg)
         // break the loop if nothing is there
         if(tollCalls.length === 0){
-            emit({type:"done" , text:content})
+            await emit({type:"done" , text:content})
             return content
         }
 
         // executing all the avaliable tool calls that llm want  us to execute;
         for(const tc of tollCalls){
             const args  = JSON.parse(tc.function.arguments || "{}")
-            emit ({type : "tool_call" , id:tc.id , name: tc.function.name , args})
+            await emit ({type : "tool_call" , id:tc.id , name: tc.function.name , args})
             const result = await executeTool(tc.function.name , args , workspaceDir)
-            emit ({type : "tool_result" , id: tc.id  , name: tc.function.name , result})
+            await  emit ({type : "tool_result" , id: tc.id  , name: tc.function.name , result})
             messages.push({role: "tool" , tool_call_id: tc.id , content : JSON.stringify(result)});
         }
     }
