@@ -4,6 +4,9 @@ import {WebSocketServer  , type WebSocket} from "ws";
 import { WS_PORT } from "./config";
 const app = express();
 
+// serve the browser page (public/index.html) at http://localhost:WS_PORT
+app.use(express.static(`${import.meta.dir}/public`));
+
 
 const server = createServer(app);
 const wss = new WebSocketServer({noServer: true});
