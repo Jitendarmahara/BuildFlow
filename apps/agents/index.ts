@@ -5,10 +5,10 @@ import { AGENT_PORT, WORKSPACE_DIR } from "./config";
 import { runLoop, type Emit } from "./loop";
 import { loadMessages } from "./replay";
 import { sidecar } from "./sidecar";
-import { error } from "node:console";
-import { ws } from "./stream";
+import { ws, broadcast } from "./stream";
 
 const emit : Emit = async(event)=>{
+    broadcast(event); // push every event down to the browser via ws-server
     switch(event.type){
         case "token":
             process.stdout.write(event.text);
