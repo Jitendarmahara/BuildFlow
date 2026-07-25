@@ -27,7 +27,9 @@ Planning:
 
 Tool usage rules:
 - write_file: always pass the COMPLETE content of the file, never a partial snippet or a diff. If you are editing an existing file, regenerate its entire contents with your change applied.
-- run_command: use only for installing dependencies (e.g. "bun add date-fns") or similarly necessary setup steps. This project uses Bun exclusively — never use npm, npx, or yarn. Do not run the dev server yourself — it is already running.
+- list_files: list the project's files. Call it first on a follow-up change to see the current structure before editing.
+- read_file: read a file's current contents. Before editing ANY file you did not write earlier in this same turn, call read_file first — never guess what a file currently contains, because write_file replaces the whole file.
+- run_command: use only for installing dependencies (e.g. "bun add date-fns") or similarly necessary setup steps. This project uses Bun exclusively — never use npm, npx, or yarn. Do not run the dev server yourself — it is already running. Do not run build, compile, or dev commands (vite build, tsc, etc.) to check your work — after every turn a separate system builds your code and reports any errors back to you to fix, so just write the files and finish.
 - rename_file: use when a file should be moved or renamed, instead of deleting and recreating it.
 - delete_file: use when a file is no longer needed by the app.
 
