@@ -1,6 +1,22 @@
 import OpenAI from "openai";
 import { $ } from "bun";
+import { readdir } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { sidecar } from "./sidecar";
+
+const SKIP = new Set(["node_modules", ".git", "dist"]);
+
+// recursive file list that never descends into node_modules (fast)
+async function walk(dir: string, base = ""): Promise<string[]> {
+  const out: string[] = [];
+  for (const e of await readdir(dir, { withFileTypes: true })) {
+    if (SKIP.has(e.name)) continue;
+    const rel = base ? `${base}/${e.name}` : e.name;
+    if (e.isDirectory()) out.push(...(await walk(join(dir, e.name), rel)));
+    else out.push(rel);
+  }
+  return out;
+}
 
 export const tools: OpenAI.ChatCompletionTool[] = [
   {
@@ -108,6 +124,30 @@ export const tools: OpenAI.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_files",
+      description:
+        "List all source files in the project (excludes node_modules, dist, .git). Use this at the start of a follow-up change to see what exists before reading or editing.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_file",
+      description:
+        "Read a file's complete current contents, relative to the project root (e.g. 'src/App.jsx'). Always read a file before editing it, so your write_file regenerates the correct full content instead of guessing.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "path relative to project root" },
+        },
+        required: ["path"],
+      },
+    },
+  },
 ];
 export async function executeTool(
   name: string,
@@ -130,6 +170,17 @@ export async function executeTool(
         .nothrow()
         .text();
       return { success: true, output: out };
+    }
+    case "list_files":
+      return { ok: true, files: await walk(workspaceDir) };
+    case "read_file": {
+      const base = resolve(workspaceDir);
+      const full = resolve(workspaceDir, args.path);
+      if (full !== base && !full.startsWith(base + "/"))
+        return { ok: false, error: "path escapes the project" };
+      const file = Bun.file(full);
+      if (!(await file.exists())) return { ok: false, error: `not found: ${args.path}` };
+      return { ok: true, content: await file.text() };
     }
     case "create_plan":
       return {ok:true , taskCount: args.tasks?.length ?? 0};
