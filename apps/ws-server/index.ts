@@ -1,6 +1,7 @@
 import express from "express"
 import { createServer } from "node:http";
 import {WebSocketServer  , type WebSocket} from "ws";
+import { WS_PORT } from "./config";
 const app = express();
 
 
@@ -49,3 +50,7 @@ server.on("upgrade" , (req , socket , head)=>{
     }
     })
 })
+
+server.listen(WS_PORT, () => {
+  console.log(`ws-server on http://localhost:${WS_PORT}`);
+});
