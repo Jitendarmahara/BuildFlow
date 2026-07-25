@@ -2,12 +2,14 @@ import type OpenAI from "openai";
 import { MAX_TURNS, MODEL } from "./config";
 import { llm } from "./llm";
 import { executeTool, tools } from "./tools";
-
+import { verifybuild } from "./verify";
+const MAX_FIXES = 3;
 
 type Msg = OpenAI.ChatCompletionMessageParam;
 export type Emit = (event:{type:string ; [k:string]:any})=>void | Promise<void>
 export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit){
     // making only a specific numbner of llm calls;
+    let fixes = 0;
     for(let turn =0 ; turn < MAX_TURNS ; turn++){
         const stream = await llm.chat.completions.create({
             model :MODEL,
@@ -42,6 +44,18 @@ export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit)
         }as Msg)
         // break the loop if nothing is there
         if(tollCalls.length === 0){
+            // no tocall we try to have a look that every thing is fix or not;
+            const check = await verifybuild(workspaceDir);
+            if(!check.ok && fixes < MAX_FIXES){
+                fixes++;
+                emit({type :"verify" , ok:false , attempt:fixes});
+                messages.push({
+                    role:"user",
+                    content:`the app failed to build.fix these errors and nothignels
+                     then finsis:\n\n${check.output}`
+                });
+                continue;
+            }
             await emit({type:"done" , text:content})
             return content
         }
