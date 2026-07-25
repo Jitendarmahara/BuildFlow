@@ -7,6 +7,19 @@ import { loadMessages } from "./replay";
 import { sidecar } from "./sidecar";
 import { ws, broadcast } from "./stream";
 
+// code lives in the workspace (→ git → S3), so we never persist file bodies to the
+// DB. drop `content` for file tools before saving; the model re-reads current content
+// via read_file. run_command output is kept — it's the only copy. this only affects
+// what we STORE — the in-flight turn still has full content in context.
+const FILE_BODY_TOOLS = new Set(["write_file", "read_file"]);
+function withoutBody(toolName: string, payload: any) {
+    if (FILE_BODY_TOOLS.has(toolName) && payload && typeof payload === "object" && "content" in payload) {
+        const { content, ...rest } = payload;
+        return rest;
+    }
+    return payload;
+}
+
 const emit : Emit = async(event)=>{
     broadcast(event); // push every event down to the browser via ws-server
     switch(event.type){
@@ -23,7 +36,7 @@ const emit : Emit = async(event)=>{
                 kind: "tool_call",
                 toolCallId: event.id,
                 toolName: event.name,
-                args : event.args,
+                args : withoutBody(event.name, event.args),
                 path : event.args?.path?? event.args?.to,
             })
             break;
@@ -32,7 +45,7 @@ const emit : Emit = async(event)=>{
                 kind:"tool_result",
                 toolCallId : event.id,
                 toolName: event.name,
-                result: event.result,
+                result: withoutBody(event.name, event.result),
             });
             break
         case "done":{
