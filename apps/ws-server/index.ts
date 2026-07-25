@@ -49,7 +49,7 @@ server.on("upgrade" , (req , socket , head)=>{
                 a.send(data.toString());
             }
         });
-        ws.on("close" , ()=> console.log(`ws-server on http://localhost:4042`))
+        ws.on("close" , ()=> r.browser.delete(ws))
     }
     })
 })
