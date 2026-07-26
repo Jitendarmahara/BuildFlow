@@ -35,11 +35,14 @@ export async function get(path:string ){
 
 // its has all the utitliy functions 
 export const sidecar = {
-    writeFile : (path:string , content:string) =>  post("/write_file" , {path , content}) ,
+    writeFile : (path:string , content:string , root?:string) =>  post("/write_file" , {path , content , root}) ,
     deleteFile : (path:string)=> post("/delete_file" , {path}),
     renameFile : (from:string , to:string)=> post("/rename_file" , {from , to}) ,
     saveMessage : (input:SaveMessageInput) => post("/conversation" , input),
     getConversation : ()=> get("/conversation"),
     commit: (message: string) =>
         post("/commit", { message }) as Promise<{ ok: boolean; committed: boolean; sha: string | null }>,
+    worktreeAdd : (id:string) => post("/worktreee/add" , {id}) as Promise<{ok:boolean , path :string}>,
+    worktreeMerge : (id:string)=> post("/worktree/merge" , {id})as Promise<{ok:boolean , conflict: boolean , files:string[]}>,
+    worktreeRemove: (id:string)=> post("/worktree/remvoe" , {id})
 }
