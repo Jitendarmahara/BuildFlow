@@ -1,7 +1,43 @@
 import { $ } from "bun";
 import { WORKSPACE_DIR } from "./config";
+import { join, relative, sep } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "path";
+import type { throws } from "node:assert";
+
+export const WORKTREES_DIR = `${WORKSPACE_DIR}-worktrees`;
+const subpath = (id:string)=> join(WORKTREES_DIR  , id);
+const subBranch = (id:string)=> `sub/${id}`;
+
 
 export const git = (...args: string[]) => $`git ${args}`.cwd(WORKSPACE_DIR).quiet();
+
+export async function worktreeAdd(id:string):Promise<string>{
+    await mkdir(WORKTREES_DIR , {recursive:true});
+    const path = subpath(id);
+    await git("worktree" , "add" , "-q" , "-b" , subBranch(id) , path , "HEAD");
+    return path;
+}
+
+export async function worktreeMerge(id:string):Promise<{ok:boolean , conflict:boolean , files:string[]}>{
+    const res = await $`git merge --no-edit ${subBranch(id)}`.cwd(WORKSPACE_DIR).nothrow().quiet();
+    if(res.exitCode === 0){
+        return {ok:true , conflict:false , files:[]}
+    }
+    // else we are sur that her is  a confit and we send all the issue form here to the llm;
+    const out = (await $`git diff --name-only --diff-filter=U`.cwd(WORKSPACE_DIR).quiet().text()).trim();
+    return {ok:false , conflict :true , files : out ? out.split("\n") : []}
+}
+export async function completeMerge():Promise<{sha:string}>{
+    await git("add" , "-A");
+    await git("commit" , "--no-edit");
+    return {sha: await headSha()}
+}
+
+export async function worktreeRemove(id:string):Promise<void>{
+    await $`git worktree remove --force ${subpath(id)}`.cwd(WORKSPACE_DIR).nothrow().quiet();
+    await $`git branch -D ${subBranch(id)}`.cwd(WORKSPACE_DIR).nothrow().quiet();
+}
 
 export async function isRepo(): Promise<boolean> {
   return Bun.file(`${WORKSPACE_DIR}/.git/HEAD`).exists();
