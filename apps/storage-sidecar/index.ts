@@ -1,6 +1,6 @@
 import express from "express";
 import {PORT , HOST , PROJECT_ID , RECONCILE_MS} from "./config";
-import { delete_file, rename_file, write_file  , post_commit , get_conversation ,post_conversation } from "./route";
+import { delete_file, rename_file, write_file  , post_commit , get_conversation ,post_conversation, post_worktree_add, post_worktree_merge, post_complete_merge, post_worktree_remove } from "./route";
 import { hydrateWorkspace } from "./hydrate";
 
 import { reconcile } from "./reconcile";
@@ -18,6 +18,10 @@ app.post("/delete_file" , delete_file)
 app.post("/conversation" , post_conversation)
 app.get("/conversation" , get_conversation)
 app.post("/commit" , post_commit)
+app.post("/worktree/add" ,  post_worktree_add);
+app.post("/worktree/merge" , post_worktree_merge);
+app.post("/worktree/complete" , post_complete_merge);
+app.post("/worktree/remove" , post_worktree_remove)
 app.listen(PORT , HOST , ()=>{
     console.log(`sidecar listining on http://${HOST}:${PORT}`)
 })

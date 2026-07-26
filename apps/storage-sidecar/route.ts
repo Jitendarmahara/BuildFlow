@@ -8,13 +8,13 @@ import { PROJECT_ID } from "./config";
 import * as git from "./git"
 
 export async function write_file(req: Request, res: Response) {
-  const { path, content } = req.body;
+  const { path, content , root } = req.body;
   if (typeof path !== "string" || typeof content !== "string") {
     return res.status(400).json({ error: "path and content must be strings" });
   }
   let target: { abs: string; rel: string };
   try {
-    target = resolveInWorkspace(path); // checking if the path is correct or not ;
+    target = resolveInWorkspace(path , root); // checking if the path is correct or not ;
   } catch (e) {
     return res.status(400).json({ error: "invalid path" });
   }
@@ -134,4 +134,48 @@ export async function post_commit(req:Request , res:Response){
     catch(e){
         return res.status(500).json({error:"commit failed"})
     }
+}
+
+// the endpont are for the subagent part testing onlyu;
+
+export async function  post_worktree_add(req:Request , res:Response){
+  const{id} = req.body ?? {};
+  if(!id)return res.status(400).json({error:"id requried"});
+  try{
+    const path = await git.worktreeAdd(id);
+    return res.json({ok:true , path})
+  }catch(e){
+    return res.status(500).json({error:"worktree add failed"})
+  }
+}
+
+export async function post_worktree_merge(req:Request , res:Response){
+  const {id} = req.body ?? {};
+  if(!id)return res.status(400).json({error:"id required"});
+  try{
+    const result = await git.worktreeMerge(id);
+    return res.json(result)
+  }catch(e){
+    return res.status(500).json({error:"worktree merge failed"});
+  }
+}
+
+export async function post_complete_merge(req:Request , res:Response){
+  try{
+    const {sha} = await git.completeMerge();
+    return res.json({ok:true , sha})
+  }catch(e){
+    return res.status(500).json({error:"complete merge failed"})
+  }
+}
+
+export async function post_worktree_remove(req:Request , res:Response){
+  const {id} = req.body ?? {};
+  if(!id) return res.status(400).json({error:"id required"});
+  try{
+    await git.worktreeRemove(id);
+    return res.json({ok:true})
+  }catch(e){
+    return res.status(500).json({error:"worktree remove failed"})
+  }
 }
