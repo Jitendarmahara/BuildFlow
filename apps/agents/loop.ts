@@ -3,11 +3,15 @@ import { MAX_TURNS, MODEL } from "./config";
 import { llm } from "./llm";
 import { executeTool, tools } from "./tools";
 import { verifybuild } from "./verify";
+import { sidecar } from "./sidecar";
+import { broadcast } from "./stream";
+import { SUBAGENT_PROMPT } from "./prompt";
+import { $ } from "bun";
 const MAX_FIXES = 3;
 
 type Msg = OpenAI.ChatCompletionMessageParam;
 export type Emit = (event:{type:string ; [k:string]:any})=>void | Promise<void>
-export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit){
+export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit , verify: boolean = true){
     // making only a specific numbner of llm calls;
     let fixes = 0;
     for(let turn =0 ; turn < MAX_TURNS ; turn++){
@@ -45,6 +49,7 @@ export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit)
         // break the loop if nothing is there
         if(tollCalls.length === 0){
             // no tocall we try to have a look that every thing is fix or not;
+            if(verify){
             const check = await verifybuild(workspaceDir);
             if(!check.ok && fixes < MAX_FIXES){
                 fixes++;
@@ -56,6 +61,7 @@ export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit)
                 });
                 continue;
             }
+        }
             await emit({type:"done" , text:content})
             return content
         }
@@ -70,4 +76,17 @@ export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit)
         }
     }
     emit({type:"error" , message: "max turns reached"})
+}
+
+async function runsubagent(id:string , subtaks:string):Promise<string>{
+    const {path} = await sidecar.worktreeAdd(id);
+    const subEmit:Emit = (event)=>broadcast({...event , agent:id});
+    const messages:Msg[] = [
+        {role: "system" , content: SUBAGENT_PROMPT},
+        {role:"user" , content : subtaks},
+
+    ];
+    const summry = await runLoop(messages , path , subEmit , false);
+    await $`git add -A && git commit -q -m ${`subagent${id}`}`.cwd(path).nothrow().quiet();
+    return summry ?? "";
 }
