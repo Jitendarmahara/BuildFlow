@@ -3,6 +3,7 @@ import { $ } from "bun";
 import { readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { sidecar } from "./sidecar";
+import { WORKSPACE_DIR } from "./config";
 
 const SKIP = new Set(["node_modules", ".git", "dist"]);
 
@@ -148,6 +149,35 @@ export const tools: OpenAI.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "spawn_subagents",
+      description:
+        "Delegate independent, FILE-DISJOINT subtasks to parallel sub-agents. Only use when subtasks touch different files (e.g. one builds src/lib/store.js, another builds src/components/FilterBar.jsx) — never two on the same file. Each runs in isolation and is merged back.",
+      parameters: {
+        type: "object",
+        properties: {
+          subtasks: {
+            type: "array",
+            description: "the disjoint subtasks to run in parallel",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string", description: "short id, e.g. 's1'" },
+                description: {
+                  type: "string",
+                  description: "what to build + which files it owns",
+                },
+              },
+              required: ["id", "description"],
+            },
+          },
+        },
+        required: ["subtasks"],
+      },
+    },
+  },
 ];
 export async function executeTool(
   name: string,
@@ -156,7 +186,7 @@ export async function executeTool(
 ): Promise<any> {
   switch (name) {
     case "write_file":
-      await sidecar.writeFile(args.path, args.content);
+      await sidecar.writeFile(args.path, args.content , WORKSPACE_DIR);
       return { success: true };
     case "rename_file":
       await sidecar.renameFile(args.from, args.to);
