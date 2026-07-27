@@ -26,11 +26,21 @@ export async function worktreeMerge(id:string):Promise<{ok:boolean , conflict:bo
     }
     // else we are sur that her is  a confit and we send all the issue form here to the llm;
     const out = (await $`git diff --name-only --diff-filter=U`.cwd(WORKSPACE_DIR).quiet().text()).trim();
-    return {ok:false , conflict :true , files : out ? out.split("\n") : []}
+    const files = out ? out.split("\n"): [];
+    if(files.length === 0){
+        await $`git merge --abort`.cwd(WORKSPACE_DIR).nothrow().quiet();
+        return {ok:false , conflict:false , files:[]}
+    }
+    return {ok:false , conflict :true , files}
 }
 export async function completeMerge():Promise<{sha:string}>{
-    await git("add" , "-A");
-    await git("commit" , "--no-edit");
+    await $`git add -A`.cwd(WORKSPACE_DIR).nothrow().quiet();
+    // explicit -m so an empty MERGE_MSG can't abort the commit; tolerate a no-op merge
+    const r = await $`git commit -m ${"resolve subagent merge"}`.cwd(WORKSPACE_DIR).nothrow().quiet();
+    if(r.exitCode !== 0){
+        const err = (r.stderr.toString() || r.stdout.toString());
+        if(!/nothing to commit/i.test(err)) throw new Error(`git commit failed: ${err.trim()}`);
+    }
     return {sha: await headSha()}
 }
 

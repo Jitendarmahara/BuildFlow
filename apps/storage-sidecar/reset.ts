@@ -9,7 +9,7 @@ await client.message.create({
   data: {
     projectId: PROJECT_ID,
     kind: "user",
-    content: "build me a todo app with due dates and filters",
+    content: "build me a complex todo app with due dates and filters",
   },
 });
 
