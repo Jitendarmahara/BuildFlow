@@ -42,7 +42,8 @@ export const sidecar = {
     getConversation : ()=> get("/conversation"),
     commit: (message: string) =>
         post("/commit", { message }) as Promise<{ ok: boolean; committed: boolean; sha: string | null }>,
-    worktreeAdd : (id:string) => post("/worktreee/add" , {id}) as Promise<{ok:boolean , path :string}>,
+    worktreeAdd : (id:string) => post("/worktree/add" , {id}) as Promise<{ok:boolean , path :string}>,
     worktreeMerge : (id:string)=> post("/worktree/merge" , {id})as Promise<{ok:boolean , conflict: boolean , files:string[]}>,
-    worktreeRemove: (id:string)=> post("/worktree/remvoe" , {id})
+    worktreeRemove: (id:string)=> post("/worktree/remove" , {id}),
+    completeMerge : ()=>post("/worktree/complete" , {}) as Promise<{ok:boolean ; sha:string}> 
 }
