@@ -6,6 +6,7 @@ import { runLoop, type Emit } from "./loop";
 import { loadMessages } from "./replay";
 import { sidecar } from "./sidecar";
 import { ws, broadcast } from "./stream";
+import { resolveAnswer } from "./ask";
 
 // code lives in the workspace (→ git → S3), so we never persist file bodies to the
 // DB. drop `content` for file tools before saving; the model re-reads current content
@@ -62,10 +63,20 @@ const emit : Emit = async(event)=>{
 
 let running: Promise<void> | null = null;
 
+// keep the agent alive no matter what — a failed turn must never kill the process,
+// or the frontend loses its connection and can't retry.
+process.on("unhandledRejection", (e) => console.error("[agent] unhandledRejection", e));
+process.on("uncaughtException", (e) => console.error("[agent] uncaughtException", e));
+
 async function runTurn(){
     const messages = await loadMessages();
     if(messages[messages.length -1]?.role !== "user") return;
-    await runLoop(messages , WORKSPACE_DIR , emit)
+    try {
+        await runLoop(messages , WORKSPACE_DIR , emit)
+    } catch (e) {
+        console.error("[agent] turn error", e);
+        emit({ type: "error", message: String(e) }); // surface to the browser, stay alive
+    }
 }
 
 async function startTurn(){
@@ -76,7 +87,11 @@ async function startTurn(){
 }
 
 ws.onmessage = async(msg)=>{
-    const data = JSON.parse(msg.toString())
+    const data = JSON.parse(msg.data.toString())
+    if(data.type === "answer" && data.id){
+        resolveAnswer(data.id , data.content ?? " ");
+        return
+    }
     if(data.type !== "user_message" || !data.content)return;
     if(running)return;
     await sidecar.saveMessage({kind:"user" , content : data.content});

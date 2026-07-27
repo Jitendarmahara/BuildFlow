@@ -4,6 +4,7 @@ import { readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { sidecar } from "./sidecar";
 import { WORKSPACE_DIR } from "./config";
+import { askUser } from "./ask";
 
 const SKIP = new Set(["node_modules", ".git", "dist"]);
 
@@ -160,6 +161,7 @@ export const tools: OpenAI.ChatCompletionTool[] = [
         properties: {
           subtasks: {
             type: "array",
+            maxIems: 4,
             description: "the disjoint subtasks to run in parallel",
             items: {
               type: "object",
@@ -178,6 +180,22 @@ export const tools: OpenAI.ChatCompletionTool[] = [
       },
     },
   },
+   {
+    type: "function",
+    function: {
+      name: "ask_user",
+      description:
+        "Ask the user a clarifying question ONLY when you genuinely need their input to proceed (e.g. a truly ambiguous requirement). Blocks until they answer. Provide 'options' for a multiple-choice question. Use sparingly — prefer sensible defaults over asking.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "the question to ask" },
+          options: { type: "array", items: { type: "string" }, description: "optional preset choices for one-click answering" },
+        },
+        required: ["question"],
+      },
+    },
+  },
 ];
 export async function executeTool(
   name: string,
@@ -186,7 +204,7 @@ export async function executeTool(
 ): Promise<any> {
   switch (name) {
     case "write_file":
-      await sidecar.writeFile(args.path, args.content , WORKSPACE_DIR);
+      await sidecar.writeFile(args.path, args.content, workspaceDir);
       return { success: true };
     case "rename_file":
       await sidecar.renameFile(args.from, args.to);
@@ -216,6 +234,9 @@ export async function executeTool(
       return {ok:true , taskCount: args.tasks?.length ?? 0};
     case "update_task_status":
       return {ok:true , taskId : args.taskId , status : args.status};
+
+    case "ask_user":
+      return {answer: await askUser(args.question , args.options)}
     default:
       return { success: false, error: `unknown tool: ${name}` };
   }
