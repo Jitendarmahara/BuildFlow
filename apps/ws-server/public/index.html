@@ -25,6 +25,12 @@
     .result { color: #7d8590; padding-left: 16px; }
     .result.err { color: #f85149; }
     .verify { color: #d29922; }
+    .question { margin: 8px 0; padding: 10px 12px; border: 1px solid #d29922; border-radius: 6px; }
+    .question .opts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .question button { background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 6px 14px; border-radius: 6px; cursor: pointer; font: inherit; }
+    .question button:hover:not(:disabled) { border-color: #d29922; }
+    .question input { margin-top: 8px; width: 100%; background: #010409; border: 1px solid #30363d; color: #e6edf3; padding: 8px 10px; border-radius: 6px; font: inherit; }
+    .question :disabled { opacity: .5; cursor: default; }
     #assistant { color: #e6edf3; }
     .done-banner { color: #3fb950; padding: 8px 0; border-top: 1px solid #21262d; margin-top: 8px; }
     #status { position: fixed; top: 8px; right: 12px; font-size: 11px; color: #7d8590; }
@@ -138,6 +144,10 @@
           line(`🔧 build failed — fixing (attempt ${ev.attempt})`, "verify");
           break;
 
+        case "question":
+          renderQuestion(ev);
+          break;
+
         case "done":
           endBubble();
           line(`✓ done${ev.text ? " — " + ev.text : ""}`, "done-banner");
@@ -145,9 +155,46 @@
       }
     }
 
+    // render a question from the agent: option buttons or a text input; the answer goes back up
+    function renderQuestion(ev) {
+      endBubble();
+      const box = document.createElement("div");
+      box.className = "question";
+      const q = document.createElement("div");
+      q.textContent = "❓ " + ev.question;
+      box.appendChild(q);
+      const send = (content) => {
+        if (ws && ws.readyState === WebSocket.OPEN)
+          ws.send(JSON.stringify({ type: "answer", id: ev.id, content }));
+        box.querySelectorAll("button, input").forEach((el) => (el.disabled = true));
+        line(`↳ ${content}`, "tool");
+      };
+      if (Array.isArray(ev.options) && ev.options.length) {
+        const row = document.createElement("div");
+        row.className = "opts";
+        for (const opt of ev.options) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = opt;
+          b.onclick = () => send(opt);
+          row.appendChild(b);
+        }
+        box.appendChild(row);
+      } else {
+        const inp = document.createElement("input");
+        inp.placeholder = "Type your answer, press Enter…";
+        inp.onkeydown = (e) => { if (e.key === "Enter" && inp.value.trim()) send(inp.value.trim()); };
+        box.appendChild(inp);
+      }
+      main.appendChild(box);
+      main.scrollTop = main.scrollHeight;
+      box.querySelector("input, button")?.focus();
+    }
+
     // --- connect ---
+    let ws;
     function connect() {
-      const ws = new WebSocket(`ws://${location.host}/subscribe?projectId=${projectId}`);
+      ws = new WebSocket(`ws://${location.host}/subscribe?projectId=${projectId}`);
       ws.onopen = () => { status.textContent = "● live"; status.style.color = "#3fb950"; };
       ws.onclose = () => {
         status.textContent = "○ disconnected — retrying";
