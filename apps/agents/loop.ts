@@ -1,11 +1,11 @@
 import type OpenAI from "openai";
-import { MAX_TURNS, MODEL } from "./config";
+import { MAX_SUBAGENTS, MAX_TURNS, MODEL, WORKSPACE_DIR } from "./config";
 import { llm } from "./llm";
 import { executeTool, tools } from "./tools";
 import { verifybuild } from "./verify";
 import { sidecar } from "./sidecar";
 import { broadcast } from "./stream";
-import { SUBAGENT_PROMPT } from "./prompt";
+import { CONFLICT_RESOLVER_PROMPT, SUBAGENT_PROMPT } from "./prompt";
 import { $ } from "bun";
 const MAX_FIXES = 3;
 
@@ -68,9 +68,16 @@ export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit 
 
         // executing all the avaliable tool calls that llm want  us to execute;
         for(const tc of tollCalls){
-            const args  = JSON.parse(tc.function.arguments || "{}")
+            let args: any = {};
+            try { args = JSON.parse(tc.function.arguments || "{}"); } catch { args = {}; } // bad tool args → don't crash
             await emit ({type : "tool_call" , id:tc.id , name: tc.function.name , args})
-            const result = await executeTool(tc.function.name , args , workspaceDir)
+            let result: any;
+            try {
+                result = tc.function.name ==='spawn_subagents' ? await runSubagents(args.subtasks ?? [] , emit)   :   await executeTool(tc.function.name , args , workspaceDir)
+            } catch (e) {
+                // a single tool failure feeds back to the LLM (it can retry/adjust) — it must NOT kill the turn
+                result = { ok: false, error: String(e) };
+            }
             await  emit ({type : "tool_result" , id: tc.id  , name: tc.function.name , result})
             messages.push({role: "tool" , tool_call_id: tc.id , content : JSON.stringify(result)});
         }
@@ -89,4 +96,43 @@ async function runsubagent(id:string , subtaks:string):Promise<string>{
     const summry = await runLoop(messages , path , subEmit , false);
     await $`git add -A && git commit -q -m ${`subagent${id}`}`.cwd(path).nothrow().quiet();
     return summry ?? "";
+}
+
+async function runSubagents(subtask:{id:string , description:string}[] , emit:Emit){
+    if(subtask.length > MAX_SUBAGENTS){
+        return {ok:false , error:`You requested ${subtask.length} sub-agents but the max is ${MAX_SUBAGENTS}. Call spawn_subagents again with at most ${MAX_SUBAGENTS} file-disjoint subtasks, and build or delegate the rest afterward.`}
+    }
+    await sidecar.commit("checkpoint befor subagents"); // the problem i faced here was that every subagetnt try to crate diff fn so then the main have to fix it
+    // beter cretate the overview over in the main fille and let the subages user them ;
+    const settled = await Promise.allSettled(
+        subtask.map(async (x)=> ({id:x.id , summary :  await runsubagent(x.id , x.description)}))
+    );
+    const built = settled.map((r , i)=>
+        r.status === "fulfilled" ? r.value : {id: subtask[i]!.id , summary:`(subagent failed: ${r.reason})`}
+    );
+    const merges: any [] = [];
+    for(const t of subtask){
+        try {
+            const res = await sidecar.worktreeMerge(t.id);
+            if(res.conflict) await resolveConflict(res.files); // llm fixes conflicts
+            merges.push({id:t.id , ...res});
+        } catch (e) {
+            merges.push({id:t.id , ok:false , error:String(e)}); // a bad merge is data, not a crash
+        } finally {
+            await sidecar.worktreeRemove(t.id).catch(()=>{}); // rhia ia to clean the repo
+        }
+    }
+    return {ok:true , subagents : built , merges}
+}
+
+async function resolveConflict(files: string[]):Promise<void>{
+    const resolveEmit : Emit = (event) =>  broadcast({...event , agent: "resolver"})
+
+    const messages:Msg[] = [
+        {role:"system" , content: CONFLICT_RESOLVER_PROMPT},
+        {role: "user" , content : `these files have merge conflicts - reslove each and write it back merged:\n${files.join("\n")}`}
+    ];
+
+    await runLoop (messages , WORKSPACE_DIR , resolveEmit , false);
+    await sidecar.completeMerge();
 }
