@@ -161,7 +161,7 @@ export const tools: OpenAI.ChatCompletionTool[] = [
         properties: {
           subtasks: {
             type: "array",
-            maxIems: 4,
+            maxItems: 4,
             description: "the disjoint subtasks to run in parallel",
             items: {
               type: "object",
