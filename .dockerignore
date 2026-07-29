@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+.git
+dist
+**/dist
+.turbo
+agent-workspace
+agent-workspace-worktrees
+.env
+**/.env
