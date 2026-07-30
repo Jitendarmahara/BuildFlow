@@ -38,7 +38,12 @@ export function deploymentManifest(projectId: string , replicas: number){
                             imagePullPolicy: "IfNotPresent",
                             env: [
                                 {name: "PROJECT_ID" , value : projectId},
-                                {name: "SIDECAR_URL" , value : `http://localhost:${SIDECAR_PORT}`}
+                                {name: "SIDECAR_URL" , value : `http://localhost:${SIDECAR_PORT}`},
+                                // the agent's ONE legitimate secret — from its own secret, not
+                                // project-secrets, so it never sees the DB/S3 creds
+                                {name: "DEEPSEEK_API_KEY" , valueFrom : {secretKeyRef : {name: "agent-secrets" , key: "DEEPSEEK_API_KEY"}}},
+                                // the global ws-server lives in lovable-system; this pod is in projects
+                                {name: "WS_SERVER_URL" , value : "ws://ws-server.lovable-system.svc.cluster.local:4042"},
                             ],
                             volumeMounts: [worksapce],
                         },
