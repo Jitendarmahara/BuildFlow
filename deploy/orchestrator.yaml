@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Namespace
+metadata: { name: lovable-system }
+---
+apiVersion: v1
+kind: Namespace
+metadata: { name: projects }
+---
+# identity the orchestrator process runs as
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: orchestrator, namespace: lovable-system }
+---
+# what that identity may do IN the projects namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: project-manager, namespace: projects }
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: orchestrator-project-manager, namespace: projects }
+subjects:
+  - kind: ServiceAccount
+    name: orchestrator
+    namespace: lovable-system # SA lives in lovable-system, acts in projects
+roleRef:
+  kind: Role
+  name: project-manager
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: orchestrator, namespace: lovable-system }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: orchestrator } }
+  template:
+    metadata: { labels: { app: orchestrator } }
+    spec:
+      serviceAccountName: orchestrator # <-- uses the identity above
+      containers:
+        - name: orchestrator
+          image: docker.io/library/lovable-orchestrator:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 5000 }]
+          env:
+            - { name: PROJECTS_NAMESPACE, value: projects }
+            - { name: IMAGE_REGISTRY, value: docker.io/library }
+            # Bun's fetch (used by @kubernetes/client-node) ignores the CA the library
+            # configures from the mounted SA token dir. Add the cluster CA to Bun's global
+            # trust store so it can verify the API server cert.
+            - { name: NODE_EXTRA_CA_CERTS, value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: orchestrator, namespace: lovable-system }
+spec:
+  selector: { app: orchestrator }
+  ports: [{ port: 5000, targetPort: 5000 }]
