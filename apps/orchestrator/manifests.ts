@@ -35,6 +35,7 @@ export function deploymentManifest(projectId: string , replicas: number){
                         {
                             name: "agent",
                             image: `${IMAGE_REGISTRY}/lovable-agent:latest`,
+                            imagePullPolicy: "IfNotPresent",
                             env: [
                                 {name: "PROJECT_ID" , value : projectId},
                                 {name: "SIDECAR_URL" , value : `http://localhost:${SIDECAR_PORT}`}
@@ -44,12 +45,14 @@ export function deploymentManifest(projectId: string , replicas: number){
                         {
                             name:"preview-build",
                             image:`${IMAGE_REGISTRY}/lovable-preview-build:latest`,
+                            imagePullPolicy: "IfNotPresent",
                             ports : [{containerPort: VITE_PORT}],
                             volumeMounts: [worksapce],
                         },
                         {
                             name: "storage-sidecar",
                             image : `${IMAGE_REGISTRY}/lovable-sidecar:latest`,
+                            imagePullPolicy: "IfNotPresent",
                             env: [{name: "PROJECT_ID" , value : projectId}],
                             envFrom :[{secretRef: {name: "project-secrets"}}],
                             volumeMounts: [worksapce],
