@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: reaper, namespace: lovable-system }
+spec:
+  schedule: "*/5 * * * *" # every 5 minutes
+  concurrencyPolicy: Forbid # never overlap runs
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reaper
+              image: docker.io/library/lovable-reaper:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - { name: ORCHESTRATOR_URL, value: "http://orchestrator:5000" }
+                - { name: IDLE_MINUTES, value: "15" }
+                - { name: ARCHIVE_MINUTES , value: "60"}
+                # only the DB URL — the reaper never touches S3 or JWT
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef: { name: backend-secrets, key: DATABASE_URL }
