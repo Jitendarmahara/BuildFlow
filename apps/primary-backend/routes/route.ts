@@ -115,4 +115,46 @@ router.post("/projects", Middleware, async (req, res) => {
   return res.status(200).json({ projectId: project.id });
 });
 
+// get the all the conversation of  the signed user
+
+router.get("/projects" , Middleware , async(req , res)=>{
+  const userId = req.userId;
+  const projects = await client.project.findMany({
+    where:{
+      userId
+    },
+    orderBy:{updatedAt:"desc"},
+    select:{id:true , title:true , status:true , createdAt:true , updatedAt:true}
+  });
+  res.json({projects})
+})
+
+router.get("/projects/:id/messages" , Middleware, async(req , res)=>{
+  const {id} = req.params;
+  if(typeof(id)!== 'string'){
+    return res.status(400).json({
+      error:"id need to be a string"
+    })
+  }
+  const owns = await client.project.findFirst({
+    where:{
+      id , userId:req.userId
+    },
+    select:{
+      id:true
+    }
+  })
+  if(!owns){
+    return res.status(404).json({error:"project not found"})
+  }
+  const message = await client.message.findMany({
+    where :{
+      projectId: id
+    },
+    orderBy:{createdAt :"asc"},
+    select:{id:true , kind:true , content:true , toolName:true , createdAt : true}
+  })
+  res.json({message})
+})
+
 export default router;
