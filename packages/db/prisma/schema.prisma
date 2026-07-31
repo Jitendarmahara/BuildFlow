@@ -67,6 +67,7 @@ enum Status{
   running
   sleeping
   failed
+  archived
 }
 enum MessageKind{
   user
