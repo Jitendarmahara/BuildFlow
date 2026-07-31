@@ -157,4 +157,34 @@ router.get("/projects/:id/messages" , Middleware, async(req , res)=>{
   res.json({message})
 })
 
+router.post("/projects/:id/open" , Middleware , async(req , res)=>{
+  const {id}= req.params;
+  if(typeof(id)!== "string"){
+    return  res.status(400).json({
+      error:"id need to be a string"
+    })
+  }
+  const owns = await client.project.findFirst({
+    where:{id , userId: req.userId},
+    select:{id:true}
+  })
+  if(!owns){
+    return res.status(404).json({error:"project not found"})
+  }
+  try{
+    await bootpod(id);
+    await client.project.update({
+      where:{
+        id
+      },
+      data:{
+        status:"running" , lastActiveAt: new Date()
+      }
+    });
+    res.json({ok:true , projectId: id})
+  }catch(e){
+    console.log("failed to open the project");
+    return res.status(500).json({error:"falied to open project"})
+  }
+})
 export default router;
