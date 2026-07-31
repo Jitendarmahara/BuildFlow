@@ -87,15 +87,19 @@ async function startTurn(){
 }
 
 ws.onmessage = async(msg)=>{
-    const data = JSON.parse(msg.data.toString())
-    if(data.type === "answer" && data.id){
-        resolveAnswer(data.id , data.content ?? " ");
-        return
+    try{
+        const data = JSON.parse(msg.data.toString())
+        if(data.type === "answer" && data.id){
+            resolveAnswer(data.id , data.content ?? " ");
+            return
+        }
+        if(data.type !== "user_message" || !data.content)return;
+        if(running)return;
+        await sidecar.saveMessage({kind:"user" , content : data.content});
+        startTurn();
+    }catch(e){
+        broadcast({type:"error" , message: "couldnt process that try again"})
     }
-    if(data.type !== "user_message" || !data.content)return;
-    if(running)return;
-    await sidecar.saveMessage({kind:"user" , content : data.content});
-    startTurn();
 }
 
 const app = express();
