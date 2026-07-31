@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: primary-backend, namespace: lovable-system }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: primary-backend } }
+  template:
+    metadata: { labels: { app: primary-backend } }
+    spec:
+      containers:
+        - name: primary-backend
+          image: docker.io/library/lovable-primary-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3000 }]
+          env:
+            # orchestrator Service is in the same namespace → short name resolves
+            - { name: ORCHESTRATOR_URL, value: "http://orchestrator:5000" }
+          envFrom:
+            # DATABASE_URL + AWS_* + JWT_SECRET
+            - secretRef: { name: backend-secrets }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: primary-backend, namespace: lovable-system }
+spec:
+  selector: { app: primary-backend }
+  ports: [{ port: 3000, targetPort: 3000 }]
