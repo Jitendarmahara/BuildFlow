@@ -1,12 +1,19 @@
 // load the meesages if not we pod we start freahs ;
 
 import express from "express"
-import { AGENT_PORT, WORKSPACE_DIR } from "./config";
+import { AGENT_PORT, WORKSPACE_DIR, SIDECAR_URL } from "./config";
 import { runLoop, type Emit } from "./loop";
 import { loadMessages } from "./replay";
 import { sidecar } from "./sidecar";
 import { ws, broadcast } from "./stream";
 import { resolveAnswer } from "./ask";
+import type OpenAI from "openai";
+
+// Tier 0: the FULL in-memory conversation context for this project's pod.
+// built once on boot from the DB, then kept + appended in memory — never re-read per turn.
+type Msg = OpenAI.ChatCompletionMessageParam;
+let history: Msg[] = [];
+
 
 // code lives in the workspace (→ git → S3), so we never persist file bodies to the
 // DB. drop `content` for file tools before saving; the model re-reads current content
@@ -69,10 +76,10 @@ process.on("unhandledRejection", (e) => console.error("[agent] unhandledRejectio
 process.on("uncaughtException", (e) => console.error("[agent] uncaughtException", e));
 
 async function runTurn(){
-    const messages = await loadMessages();
-    if(messages[messages.length -1]?.role !== "user") return;
+  
+    if(history[history.length -1]?.role !== "user") return;
     try {
-        await runLoop(messages , WORKSPACE_DIR , emit)
+        await runLoop(history , WORKSPACE_DIR , emit)
     } catch (e) {
         console.error("[agent] turn error", e);
         emit({ type: "error", message: String(e) }); // surface to the browser, stay alive
@@ -95,7 +102,8 @@ ws.onmessage = async(msg)=>{
         }
         if(data.type !== "user_message" || !data.content)return;
         if(running)return;
-        await sidecar.saveMessage({kind:"user" , content : data.content});
+        history.push({role:"user" , content: data.content}); 
+        await sidecar.saveMessage({kind:"user" , content : data.content}); // DB (durable minimum)
         startTurn();
     }catch(e){
         broadcast({type:"error" , message: "couldnt process that try again"})
@@ -114,13 +122,23 @@ app.post("/message" , async (req , res)=>{
     }
     const {content} =  req.body ?? {};
     if(!content) return res.status(409).json({error: "content required"});
-    // need to think a better over her ;
-    await sidecar.saveMessage({kind:"user" , content});
-    startTurn(); // ther response will be send through the websocket server 
+    history.push({role:"user" , content}); 
+    await sidecar.saveMessage({kind:"user" , content}); 
+    startTurn(); // ther response will be send through the websocket server
     res.json({ok:true})
 })
 
 app.listen(AGENT_PORT , ()=>{
     console.log(`agent listening on http://localhost:${AGENT_PORT}`)
 })
+
+async function waitForSidecar(){
+    for(let i = 0; i < 60; i++){
+        try{ if((await fetch(`${SIDECAR_URL}/health`)).ok){ console.log("sidecar ready"); return; } }catch{ /* not up yet */ }
+        await Bun.sleep(1000);
+    }
+    console.error("sidecar not ready after 60s — starting anyway");
+}
+await waitForSidecar();
+history = await loadMessages(); // cold-start / resume: build context ONCE from the DB
 startTurn();
