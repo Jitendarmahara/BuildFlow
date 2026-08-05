@@ -152,7 +152,7 @@ router.get("/projects/:id/messages" , Middleware, async(req , res)=>{
       projectId: id
     },
     orderBy:{createdAt :"asc"},
-    select:{id:true , kind:true , content:true , toolName:true , createdAt : true}
+    select:{id:true , kind:true , content:true , toolName:true , args:true , path:true , createdAt : true}
   })
   res.json({message})
 })
