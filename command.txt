@@ -1,0 +1,176 @@
+==============================================================
+ LOVABLE — LOCAL SETUP & RUN  (from a fresh code download)
+==============================================================
+You have ONLY the source code. This file takes you from that to a
+running, testable app on your machine.
+
+PREREQUISITES (install these first):
+  - docker
+  - kind      (Kubernetes in Docker)
+  - kubectl
+  - bun
+You also need an S3 bucket + AWS credentials (project code is stored
+in S3) and a DeepSeek API key (the build agent's LLM).
+
+Run PART A once. Run PART B every time you want to use it.
+
+
+##############################################################
+ PART A — ONE-TIME SETUP
+##############################################################
+
+--------------------------------------------------------------
+ A1) Install workspace deps + generate the DB client
+--------------------------------------------------------------
+cd /path/to/lovable          # <-- the folder you downloaded
+bun install
+cd packages/db && bunx prisma generate && cd ../..
+
+--------------------------------------------------------------
+ A2) Create the kind cluster
+--------------------------------------------------------------
+kind create cluster --name lovable
+kubectl config use-context kind-lovable
+
+--------------------------------------------------------------
+ A3) Build all 7 images  (from the repo root)
+--------------------------------------------------------------
+docker build --build-arg APP=agents          -t lovable-agent:latest .
+docker build --build-arg APP=storage-sidecar -t lovable-sidecar:latest .
+docker build --build-arg APP=orchestrator    -t lovable-orchestrator:latest .
+docker build --build-arg APP=ws-server       -t lovable-ws-server:latest .
+docker build --build-arg APP=primary-backend -t lovable-primary-backend:latest .
+docker build --build-arg APP=reaper          -t lovable-reaper:latest .
+docker build -f dockerfile.preview           -t lovable-preview-build:latest .
+
+--------------------------------------------------------------
+ A4) Load every image into the kind cluster
+--------------------------------------------------------------
+for img in lovable-agent lovable-sidecar lovable-orchestrator \
+           lovable-ws-server lovable-primary-backend lovable-reaper \
+           lovable-preview-build ; do
+  kind load docker-image $img:latest --name lovable
+done
+
+--------------------------------------------------------------
+ A5) Start the local Postgres DB (on the kind network) + push schema
+--------------------------------------------------------------
+docker run -d --name lovable-postgres \
+  --network kind --ip 172.18.0.240 \
+  -e POSTGRES_USER=lovable \
+  -e POSTGRES_PASSWORD=lovable \
+  -e POSTGRES_DB=lovable \
+  -p 5432:5432 \
+  -v lovable-pgdata:/var/lib/postgresql/data \
+  postgres:16
+
+# wait a couple seconds, then create the tables (host-side URL = localhost)
+cd packages/db
+DATABASE_URL='postgresql://lovable:lovable@localhost:5432/lovable?sslmode=disable' bunx prisma db push
+cd ../..
+
+--------------------------------------------------------------
+ A6) Deploy the orchestrator FIRST (it also creates the namespaces)
+--------------------------------------------------------------
+kubectl apply -f deploy/orchestrator.yaml
+kubectl -n lovable-system rollout status deploy/orchestrator
+
+--------------------------------------------------------------
+ A7) Create the 3 secrets  (fill in <...> with YOUR values)
+--------------------------------------------------------------
+# in-cluster DB address is the container's kind-network IP (NOT localhost)
+DB_URL='postgresql://lovable:lovable@172.18.0.240:5432/lovable?sslmode=disable'
+
+# agent gets ONLY the LLM key (never DB/S3 creds)
+kubectl -n projects create secret generic agent-secrets \
+  --from-literal=DEEPSEEK_API_KEY='<YOUR_DEEPSEEK_API_KEY>'
+
+# sidecar creds (per-project pods)
+kubectl -n projects create secret generic project-secrets \
+  --from-literal=DATABASE_URL="$DB_URL" \
+  --from-literal=AWS_ACCESS_KEY_ID='<YOUR_AWS_KEY>' \
+  --from-literal=AWS_SECRET_ACCESS_KEY='<YOUR_AWS_SECRET>' \
+  --from-literal=AWS_REGION='<YOUR_AWS_REGION>' \
+  --from-literal=AWS_BUCKET='<YOUR_S3_BUCKET>'
+
+# primary-backend + reaper creds
+kubectl -n lovable-system create secret generic backend-secrets \
+  --from-literal=DATABASE_URL="$DB_URL" \
+  --from-literal=AWS_ACCESS_KEY_ID='<YOUR_AWS_KEY>' \
+  --from-literal=AWS_SECRET_ACCESS_KEY='<YOUR_AWS_SECRET>' \
+  --from-literal=AWS_REGION='<YOUR_AWS_REGION>' \
+  --from-literal=AWS_BUCKET='<YOUR_S3_BUCKET>' \
+  --from-literal=JWT_SECRET='<ANY_LONG_RANDOM_STRING>'
+
+--------------------------------------------------------------
+ A8) Deploy the rest of the control plane
+--------------------------------------------------------------
+kubectl apply -f deploy/ws-server.yaml
+kubectl apply -f deploy/primary-backend.yaml
+kubectl apply -f deploy/reaper-cronjob.yaml    # optional (idle cleanup)
+kubectl -n lovable-system rollout status deploy/ws-server
+kubectl -n lovable-system rollout status deploy/primary-backend
+
+# Setup done. All 3 control-plane pods should be Running:
+kubectl -n lovable-system get pods
+
+
+##############################################################
+ PART B — RUN & USE IT  (every time)
+##############################################################
+Open 3 terminals. Leave each running.
+
+# make sure the DB + cluster node are up (no-op if already running)
+docker start lovable-postgres lovable-control-plane
+kubectl config use-context kind-lovable
+
+# TERMINAL 1 — REST API tunnel (auto-reconnects if the backend pod restarts)
+while true; do kubectl -n lovable-system port-forward svc/primary-backend 3000:3000; echo "reconnecting..."; sleep 1; done
+
+# TERMINAL 2 — live-stream tunnel (auto-reconnects)
+while true; do kubectl -n lovable-system port-forward svc/ws-server 4042:4042; echo "reconnecting..."; sleep 1; done
+
+# NOTE: a plain `kubectl port-forward` DIES when its target pod is replaced
+# (e.g. after you rebuild+restart a service). The `while true` loop reconnects
+# it automatically, so the frontend never loses the backend. Leave it running.
+
+# TERMINAL 3 — the website (http://localhost:3001)
+cd apps/web && bun dev
+
+# Then in the browser:
+#   http://localhost:3001
+#   -> Sign up (any email + 8+ char password) — the DB starts empty
+#   -> type a prompt, click Create, watch it build live
+#   -> follow-up messages edit the same app (context is kept)
+
+
+##############################################################
+ STOP EVERYTHING
+##############################################################
+# stop the web app: Ctrl-C in Terminal 3
+# stop the port-forwards (kill only kubectl, not your shell):
+ps -eo pid,args | awk '/port-forward/ && !/awk/ && !/bash -c/ {print $1}' | xargs -r kill
+# (optional) stop the DB — data is safe on the lovable-pgdata volume:
+docker stop lovable-postgres
+
+
+##############################################################
+ REBUILD AFTER A CODE CHANGE
+##############################################################
+# rebuild + reload only the app you changed, e.g. the agent:
+docker build --build-arg APP=agents -t lovable-agent:latest .
+kind load docker-image lovable-agent:latest --name lovable
+# control-plane apps (orchestrator/ws-server/primary-backend/reaper) also need:
+#   kubectl -n lovable-system rollout restart deploy/<name>
+# agent/sidecar/preview are per-project — a NEW project picks up the new image.
+# web app (apps/web) — just restart `bun dev`, it hot-reloads.
+
+
+##############################################################
+ QUICK HEALTH CHECK
+##############################################################
+docker exec lovable-postgres pg_isready -U lovable -d lovable        # DB up?
+kubectl -n lovable-system get pods                                    # control plane
+curl -s -o /dev/null -w "backend:%{http_code}\n" http://127.0.0.1:3000/   # 404 = up
+curl -s -o /dev/null -w "ws:%{http_code}\n"      http://127.0.0.1:4042/   # 200 = up
+kubectl -n projects get pods                                          # project pods
