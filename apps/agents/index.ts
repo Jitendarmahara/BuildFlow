@@ -7,12 +7,34 @@ import { loadMessages } from "./replay";
 import { sidecar } from "./sidecar";
 import { ws, broadcast } from "./stream";
 import { resolveAnswer } from "./ask";
+import { readdir } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import type OpenAI from "openai";
 
 // Tier 0: the FULL in-memory conversation context for this project's pod.
 // built once on boot from the DB, then kept + appended in memory — never re-read per turn.
 type Msg = OpenAI.ChatCompletionMessageParam;
 let history: Msg[] = [];
+
+// read-only workspace views for the frontend code panel (served over the ws up-channel).
+const VIEW_SKIP = new Set(["node_modules", ".git", "dist", ".worktrees"]);
+async function listFiles(dir: string, base = ""): Promise<string[]> {
+    const out: string[] = [];
+    for (const e of await readdir(dir, { withFileTypes: true })) {
+        if (VIEW_SKIP.has(e.name)) continue;
+        const rel = base ? `${base}/${e.name}` : e.name;
+        if (e.isDirectory()) out.push(...(await listFiles(join(dir, e.name), rel)));
+        else out.push(rel);
+    }
+    return out.sort();
+}
+async function readFileSafe(dir: string, p: string): Promise<string> {
+    const b = resolve(dir);
+    const full = resolve(dir, p);
+    if (full !== b && !full.startsWith(b + "/")) return "";
+    const f = Bun.file(full);
+    return (await f.exists()) ? await f.text() : "";
+}
 
 
 // code lives in the workspace (→ git → S3), so we never persist file bodies to the
@@ -98,6 +120,15 @@ ws.onmessage = async(msg)=>{
         const data = JSON.parse(msg.data.toString())
         if(data.type === "answer" && data.id){
             resolveAnswer(data.id , data.content ?? " ");
+            return
+        }
+        // read-only code views — work even while a turn is running
+        if(data.type === "list_files"){
+            broadcast({type:"files", files: await listFiles(WORKSPACE_DIR)});
+            return
+        }
+        if(data.type === "read_file" && data.path){
+            broadcast({type:"file_content", path: data.path, content: await readFileSafe(WORKSPACE_DIR, data.path)});
             return
         }
         if(data.type !== "user_message" || !data.content)return;
