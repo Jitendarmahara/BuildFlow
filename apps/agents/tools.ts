@@ -6,7 +6,7 @@ import { sidecar } from "./sidecar";
 import { WORKSPACE_DIR } from "./config";
 import { askUser } from "./ask";
 
-const SKIP = new Set(["node_modules", ".git", "dist"]);
+const SKIP = new Set(["node_modules", ".git", "dist", ".worktrees"]);
 
 // recursive file list that never descends into node_modules (fast)
 async function walk(dir: string, base = ""): Promise<string[]> {

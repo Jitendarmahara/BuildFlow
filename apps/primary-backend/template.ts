@@ -5,7 +5,7 @@ const TEMPLATE_DIR = new URL("./template", import.meta.url).pathname;
 export async function loadTemplateFiles(): Promise<Record<string, string>> {
   const glob = new Glob("**/*");
   const files: Record<string, string> = {};
-  for await (const path of glob.scan({ cwd: TEMPLATE_DIR })) {
+  for await (const path of glob.scan({ cwd: TEMPLATE_DIR, dot: true })) { // dot:true so .gitignore is seeded (else git tracks node_modules and the S3 flush is too heavy to survive teardown)
     files[path] = await Bun.file(`${TEMPLATE_DIR}/${path}`).text();// this get the text of the file 
   }
   return files;

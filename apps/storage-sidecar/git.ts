@@ -5,7 +5,11 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "path";
 import type { throws } from "node:assert";
 
-export const WORKTREES_DIR = `${WORKSPACE_DIR}-worktrees`;
+// worktrees MUST live inside WORKSPACE_DIR — that's the only path on the shared PVC.
+// A sibling like `${WORKSPACE_DIR}-worktrees` exists only in the sidecar container's
+// local fs, so the agent container (where subagent read/list/run tools execute) can't
+// see it → scandir ENOENT. Nesting under the mount makes worktrees visible to both.
+export const WORKTREES_DIR = join(WORKSPACE_DIR, ".worktrees");
 const subpath = (id:string)=> join(WORKTREES_DIR  , id);
 const subBranch = (id:string)=> `sub/${id}`;
 
