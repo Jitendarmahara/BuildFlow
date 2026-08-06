@@ -11,6 +11,7 @@ export type AgentEvent =
   | { type: "question"; id: string; question: string; options?: string[] }
   | { type: "done"; text?: string }
   | { type: "error"; message: string }
+  | { type: "busy"; message: string } // a prompt was rejected because a turn is still running
   | { type: "files"; files: string[] }
   | { type: "file_content"; path: string; content: string }
   | { type: string; [k: string]: any };

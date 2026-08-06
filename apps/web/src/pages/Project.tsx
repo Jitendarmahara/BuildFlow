@@ -271,6 +271,10 @@ export function Project({ id }: { id: string }) {
     if (e.type === "tool_call") { setBusy(true); pushTool({ name: e.name, detail: e.args?.path ?? e.args?.to ?? e.args?.command, agent: e.agent }); }
     else if (e.type === "verify") setItems((p) => [...p, { kind: "verify", ok: e.ok, attempt: e.attempt }]);
     else if (e.type === "question") { setBusy(false); setItems((p) => [...p, { kind: "question", id: e.id, question: e.question, options: e.options }]); }
+    // the agent refused a prompt because it is mid-turn. our own `busy` was wrong or we
+    // would not have sent it (a stale flag after a reconnect, or another tab) — so trust
+    // the agent and put the spinner back, rather than clearing it the way an error does.
+    else if (e.type === "busy") { setBusy(true); setItems((p) => [...p, { kind: "err", text: e.message }]); }
     else if (e.type === "error") { setBusy(false); setItems((p) => [...p, { kind: "err", text: e.message }]); }
     else if (e.type === "done") {
       setBusy(false);
@@ -307,7 +311,9 @@ export function Project({ id }: { id: string }) {
   const showCode = () => { setView("code"); connRef.current?.listFiles(); };
   const send = () => {
     const text = input.trim();
-    if (!text || !connRef.current) return;
+    // the agent runs one turn at a time and rejects anything sent during one, so sending
+    // here would only append a bubble it is going to refuse. keep the draft in the box.
+    if (!text || !connRef.current || busy) return;
     setItems((p) => [...p, { kind: "user", text }]);
     connRef.current.sendPrompt(text);
     setInput(""); setBusy(true); streamingRef.current = false;
@@ -367,10 +373,10 @@ export function Project({ id }: { id: string }) {
             <div ref={endRef} />
           </div>
           <div className="composer">
-            <textarea placeholder="Ask for a change… e.g. make the header sticky" value={input}
+            <textarea placeholder={busy ? "Working… you can type your next change" : "Ask for a change… e.g. make the header sticky"} value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} rows={1} />
-            <button className="btn btn-primary" onClick={send} disabled={!input.trim()}>Send</button>
+            <button className="btn btn-primary" onClick={send} disabled={!input.trim() || busy}>Send</button>
           </div>
         </div>
 
