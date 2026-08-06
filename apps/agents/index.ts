@@ -132,8 +132,15 @@ ws.onmessage = async(msg)=>{
             return
         }
         if(data.type !== "user_message" || !data.content)return;
-        if(running)return;
-        history.push({role:"user" , content: data.content}); 
+        // a turn is already in flight. the browser renders the bubble the moment you hit
+        // send, so returning quietly leaves a message on screen that was never received —
+        // and it is gone on the next reload, because nothing was saved. say so instead.
+        // /message already answers 409 for the same case; this is the socket's version.
+        if(running){
+            broadcast({type:"busy" , message:"still finishing the last message — send this once it is done"});
+            return;
+        }
+        history.push({role:"user" , content: data.content});
         await sidecar.saveMessage({kind:"user" , content : data.content}); // DB (durable minimum)
         startTurn();
     }catch(e){
