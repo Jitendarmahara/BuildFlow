@@ -15,11 +15,6 @@ app.use((req, res, next) => {
 
 app.use(router)
 
-// keep the shared Neon compute warm so no service hits a serverless cold-start.
-// Neon suspends after ~5 min idle (default) — ping every 4 min with a 1-min margin.
-setInterval(() => {
-    client.user.findFirst().catch((e) => console.error("neon keep-warm failed", e));
-}, 240_000);
 
 app.listen(3000 , ()=>{
     console.log("server is listining on port 3000")
