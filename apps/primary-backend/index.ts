@@ -1,6 +1,5 @@
 import express from "express"
 import router from "./routes/route";
-import { client } from "@repo/db/client";
 const app = express();
 app.use(express.json());
 
@@ -14,7 +13,6 @@ app.use((req, res, next) => {
 });
 
 app.use(router)
-
 
 app.listen(3000 , ()=>{
     console.log("server is listining on port 3000")
