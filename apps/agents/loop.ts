@@ -82,7 +82,7 @@ export async function runLoop(messages:Msg[] , workspaceDir:string , emit: Emit 
             messages.push({role: "tool" , tool_call_id: tc.id , content : JSON.stringify(result)});
         }
     }
-    emit({type:"error" , message: "max turns reached"})
+    await emit({type:"error" , message: "max turns reached"})
 }
 
 async function runsubagent(id:string , subtaks:string):Promise<string>{

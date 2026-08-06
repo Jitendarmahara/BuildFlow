@@ -87,6 +87,15 @@ const emit : Emit = async(event)=>{
             });
             break;
         }
+        // a turn that ended badly still ended. the broadcast above only reaches whoever is
+        // watching right now — reload after it and the newest stored row is a tool_call,
+        // which the page reads as "a turn is still in flight" and spins forever on a pod
+        // that stopped working long ago. MessageKind has no error variant, and assistant
+        // is the honest one anyway: this text is how the turn ended, and replay should
+        // hand it back to the model as the last thing it said.
+        case "error":
+            await sidecar.saveMessage({ kind: "assistant", content: `turn failed: ${event.message}` });
+            break;
     }
 }
 
@@ -104,7 +113,9 @@ async function runTurn(){
         await runLoop(history , WORKSPACE_DIR , emit)
     } catch (e) {
         console.error("[agent] turn error", e);
-        emit({ type: "error", message: String(e) }); // surface to the browser, stay alive
+        // awaited so the durable write lands before the turn is marked finished; if the
+        // sidecar is down too, startTurn's catch logs it and the process stays alive.
+        await emit({ type: "error", message: String(e) });
     }
 }
 
