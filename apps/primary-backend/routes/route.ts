@@ -6,6 +6,7 @@ import { loadTemplateFiles } from "../template";
 import { Awsclient } from "@repo/storage/Awsclient";
 import { bootpod } from "../orchestrator";
 import { Middleware } from "../auth/auth";
+import { JWT_SECRET } from "../config";
 
 const router = Router();
 
@@ -43,7 +44,7 @@ router.post("/signup", async (req, res) => {
     data: { email, password: hashed },
   });
 
-  const token = Jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
+  const token = Jwt.sign({ userId: user.id }, JWT_SECRET, {
     expiresIn: "7d",
   });
   return res.status(200).json({ token });
@@ -66,7 +67,7 @@ router.post("/signin", async (req, res) => {
     return res.status(400).json({ error: "invalid email or password" });
   }
 
-  const token = Jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
+  const token = Jwt.sign({ userId: user.id }, JWT_SECRET, {
     expiresIn: "7d",
   });
   return res.status(200).json({ token });
