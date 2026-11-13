@@ -1,14 +1,7 @@
 import { $ } from "bun";
 import { WORKSPACE_DIR } from "./config";
 import { join, relative, sep } from "node:path";
-import { mkdir } from "node:fs/promises";
-import { resolve } from "path";
-import type { throws } from "node:assert";
-
-// worktrees MUST live inside WORKSPACE_DIR — that's the only path on the shared PVC.
-// A sibling like `${WORKSPACE_DIR}-worktrees` exists only in the sidecar container's
-// local fs, so the agent container (where subagent read/list/run tools execute) can't
-// see it → scandir ENOENT. Nesting under the mount makes worktrees visible to both.
+import { mkdir } from "node:fs/promises"; 
 export const WORKTREES_DIR = join(WORKSPACE_DIR, ".worktrees");
 const subpath = (id:string)=> join(WORKTREES_DIR  , id);
 const subBranch = (id:string)=> `sub/${id}`;
@@ -33,6 +26,8 @@ export async function worktreeMerge(id:string):Promise<{ok:boolean , conflict:bo
     const files = out ? out.split("\n"): [];
     if(files.length === 0){
         await $`git merge --abort`.cwd(WORKSPACE_DIR).nothrow().quiet();
+
+        
         return {ok:false , conflict:false , files:[]}
     }
     return {ok:false , conflict :true , files}

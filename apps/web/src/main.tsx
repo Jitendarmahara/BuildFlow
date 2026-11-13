@@ -39,7 +39,7 @@ export function Nav() {
   return (
     <div className="nav">
       <div className="brand" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
-        <span className="dot" /> Lovable
+        <span className="dot" /> Buildflow
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         {auth.isLoggedIn ? (

@@ -47,12 +47,15 @@ spec:
       serviceAccountName: orchestrator # <-- uses the identity above
       containers:
         - name: orchestrator
-          image: docker.io/library/lovable-orchestrator:latest
+          image: ${IMAGE_REGISTRY}/lovable-orchestrator:${IMAGE_TAG}
           imagePullPolicy: IfNotPresent
           ports: [{ containerPort: 5000 }]
           env:
             - { name: PROJECTS_NAMESPACE, value: projects }
-            - { name: IMAGE_REGISTRY, value: docker.io/library }
+            # where per-project pod images (agent/sidecar/preview-build) are pulled from,
+            # baked into the Deployment specs the orchestrator applies at runtime
+            - { name: IMAGE_REGISTRY, value: "${IMAGE_REGISTRY}" }
+            - { name: IMAGE_TAG, value: "${IMAGE_TAG}" }
             # Bun's fetch (used by @kubernetes/client-node) ignores the CA the library
             # configures from the mounted SA token dir. Add the cluster CA to Bun's global
             # trust store so it can verify the API server cert.

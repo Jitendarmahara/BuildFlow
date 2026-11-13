@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, type Message } from "../api";
 import { connectProject, type AgentEvent } from "../ws";
-import { PREVIEW_URL } from "../config";
+import { previewUrl, PREVIEW_IS_LOCAL } from "../config";
 import { Nav, useRouter } from "../main";
 
 type Tool = { name: string; detail?: string; agent?: string };
@@ -191,9 +191,17 @@ export function Project({ id }: { id: string }) {
 
   const selectFile = (p: string) => { setActiveFile(p); activeFileRef.current = p; setActiveContent(""); connRef.current?.readFile(p); };
 
-  // ask the web server to (re)connect this project's preview port-forward, then reload the iframe
+  // Point the iframe at this project's live server. In prod each project has its own Caddy
+  // subdomain (https://<id>.preview.<domain>) that routes straight to its pod, so there is no
+  // tunnel to manage — just (re)load the iframe. In dev the web server owns a kubectl
+  // port-forward, so we ask it to (re)connect first.
   async function ensurePreview() {
     setPreview("connecting");
+    if (!PREVIEW_IS_LOCAL) {
+      setPreview("ready");
+      setPreviewKey((k) => k + 1);
+      return;
+    }
     try {
       const r = await fetch(`/api/preview/${id}`, { method: "POST" });
       const d = await r.json();
@@ -388,14 +396,14 @@ export function Project({ id }: { id: string }) {
             </div>
             {view === "preview" ? (
               <>
-                <span className="url">{PREVIEW_URL}</span>
+                <span className="url">{previewUrl(id)}</span>
                 <button className="btn btn-ghost" style={{ padding: "5px 12px", fontSize: 13 }} onClick={ensurePreview}>↻ Reload</button>
               </>
             ) : <span className="url">{activeFile ?? "select a file"}</span>}
           </div>
           {view === "preview" ? (
             preview === "ready" ? (
-              <iframe key={previewKey} src={PREVIEW_URL} title="preview" />
+              <iframe key={previewKey} src={previewUrl(id)} title="preview" />
             ) : preview === "connecting" ? (
               <div className="preview-msg"><span className="spinner" /><div className="pm-title">Connecting preview…</div><div className="dim">waking the project & linking its live server</div></div>
             ) : (

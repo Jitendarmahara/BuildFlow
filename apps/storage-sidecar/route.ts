@@ -80,7 +80,7 @@ export async function delete_file(req: Request, res: Response) {
 
 // this update the db for the agent llm calls;
 export async  function post_conversation(req:Request , res: Response){
-    const {kind  , toolName, content  , path , toolCallId , args , result , commitSha} = req.body ?? {};
+    const {kind  , toolName, content  , path , toolCallId , args , result} = req.body ?? {};
     const vlaues: MessageKind[] =["user" , "tool_call" , "assistant" , "tool_result" ]
     if(!vlaues.includes(kind)){
         return res.status(400).json({error:"invalid kind"})
@@ -96,7 +96,6 @@ export async  function post_conversation(req:Request , res: Response){
                 toolCallId : toolCallId ?? null,
                 args : args ?? undefined,
                 result : result  ?? undefined,
-                commitSha : commitSha ?? null,
                 toolName : toolName ?? null
 
             }

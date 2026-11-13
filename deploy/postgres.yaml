@@ -1,0 +1,46 @@
+# In-cluster Postgres — the production database. Reachable cluster-wide (control plane in
+# lovable-system AND project sidecars in the projects namespace) at:
+#   postgresql://<user>:<pass>@postgres.lovable-system.svc.cluster.local:5432/lovable
+# Data lives on a PVC via volumeClaimTemplates, so it survives pod restarts/reschedules.
+apiVersion: v1
+kind: Service
+metadata: { name: postgres, namespace: lovable-system }
+spec:
+  selector: { app: postgres }
+  ports: [{ name: pg, port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: postgres, namespace: lovable-system }
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports: [{ containerPort: 5432 }]
+          envFrom:
+            # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
+            - secretRef: { name: postgres-secret }
+          env:
+            # keep PGDATA in a subdir so the volume's lost+found doesn't make initdb refuse
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "lovable", "-d", "lovable"] }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec: { command: ["pg_isready", "-U", "lovable", "-d", "lovable"] }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 5Gi } }

@@ -1,11 +1,10 @@
 // load the meesages if not we pod we start freahs ;
 
-import express from "express"
-import { AGENT_PORT, WORKSPACE_DIR, SIDECAR_URL } from "./config";
+import { WORKSPACE_DIR, SIDECAR_URL } from "./config";
 import { runLoop, type Emit } from "./loop";
 import { loadMessages } from "./replay";
 import { sidecar } from "./sidecar";
-import { ws, broadcast } from "./stream";
+import { onIncoming, broadcast } from "./stream";
 import { resolveAnswer } from "./ask";
 import { readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -79,20 +78,14 @@ const emit : Emit = async(event)=>{
             });
             break
         case "done":{
-            const {sha} = await sidecar.commit("agent changes");
+            await sidecar.commit("agent changes");
             await sidecar.saveMessage({
                 kind :"assistant",
                 content : event.text,
-                commitSha : sha ?? undefined
             });
             break;
         }
-        // a turn that ended badly still ended. the broadcast above only reaches whoever is
-        // watching right now — reload after it and the newest stored row is a tool_call,
-        // which the page reads as "a turn is still in flight" and spins forever on a pod
-        // that stopped working long ago. MessageKind has no error variant, and assistant
-        // is the honest one anyway: this text is how the turn ended, and replay should
-        // hand it back to the model as the last thing it said.
+
         case "error":
             await sidecar.saveMessage({ kind: "assistant", content: `turn failed: ${event.message}` });
             break;
@@ -126,9 +119,9 @@ async function startTurn(){
     return running;
 }
 
-ws.onmessage = async(msg)=>{
+onIncoming(async(raw)=>{
     try{
-        const data = JSON.parse(msg.data.toString())
+        const data = JSON.parse(raw)
         if(data.type === "answer" && data.id){
             resolveAnswer(data.id , data.content ?? " ");
             return
@@ -143,10 +136,7 @@ ws.onmessage = async(msg)=>{
             return
         }
         if(data.type !== "user_message" || !data.content)return;
-        // a turn is already in flight. the browser renders the bubble the moment you hit
-        // send, so returning quietly leaves a message on screen that was never received —
-        // and it is gone on the next reload, because nothing was saved. say so instead.
-        // /message already answers 409 for the same case; this is the socket's version.
+
         if(running){
             broadcast({type:"busy" , message:"still finishing the last message — send this once it is done"});
             return;
@@ -157,29 +147,7 @@ ws.onmessage = async(msg)=>{
     }catch(e){
         broadcast({type:"error" , message: "couldnt process that try again"})
     }
-}
-
-const app = express();
-app.use(express.json());
-
-
-app.post("/message" , async (req , res)=>{
-    if(running){
-        return res.status(409).json({
-            error:"bussy in  working"
-        })
-    }
-    const {content} =  req.body ?? {};
-    if(!content) return res.status(409).json({error: "content required"});
-    history.push({role:"user" , content}); 
-    await sidecar.saveMessage({kind:"user" , content}); 
-    startTurn(); // ther response will be send through the websocket server
-    res.json({ok:true})
-})
-
-app.listen(AGENT_PORT , ()=>{
-    console.log(`agent listening on http://localhost:${AGENT_PORT}`)
-})
+});
 
 async function waitForSidecar(){
     for(let i = 0; i < 60; i++){

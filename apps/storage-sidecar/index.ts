@@ -1,5 +1,5 @@
 import express from "express";
-import {PORT , HOST , PROJECT_ID , RECONCILE_MS} from "./config";
+import {PORT , HOST , PROJECT_ID, FLUSH_PORT } from "./config";
 import { delete_file, rename_file, write_file  , post_commit , get_conversation ,post_conversation, post_worktree_add, post_worktree_merge, post_complete_merge, post_worktree_remove } from "./route";
 import { hydrateWorkspace } from "./hydrate";
 
@@ -7,6 +7,7 @@ import { reconcile } from "./reconcile";
 if(!PROJECT_ID) throw new Error("PROJECT_ID is required");
 
 const app = express();
+const drain = express();
 app.use(express.json());
 await hydrateWorkspace(); // this  check what to do when the pod is launched;
 app.get("/health" , (_req , res)=>{
@@ -25,19 +26,19 @@ app.post("/worktree/remove" , post_worktree_remove)
 app.listen(PORT , HOST , ()=>{
     console.log(`sidecar listining on http://${HOST}:${PORT}`)
 })
-// peridoic flush  to s3;
-const timer = setInterval(()=>{
-    reconcile().catch((e)=>console.error("reconcile failed" , e))
-} , RECONCILE_MS)
 
-process.on("SIGTERM" , async()=>{
-    clearInterval(timer);
+drain.post("/flush" , async(req , res)=>{
     try{
         await reconcile();
-        await reconcile();
+        res.json({ok:true})
+    }catch(e){
+        console.log("flushed failed" , e);
+        res.status(500).json({error: String(e)})
     }
-    catch(e){
-        console.error("final flush failed" , e);
-    }
-    process.exit(0);
+})
+
+
+// this drain port can be listin from any where 
+drain.listen(FLUSH_PORT , "0.0.0.0" , ()=>{
+    console.log("siedar  drain started ")
 })

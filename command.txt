@@ -174,3 +174,38 @@ kubectl -n lovable-system get pods                                    # control 
 curl -s -o /dev/null -w "backend:%{http_code}\n" http://127.0.0.1:3000/   # 404 = up
 curl -s -o /dev/null -w "ws:%{http_code}\n"      http://127.0.0.1:4042/   # 200 = up
 kubectl -n projects get pods                                          # project pods
+
+
+/// my cammand
+
+=> backend port forward
+
+while true; do kubectl -n lovable-system port-forward svc/primary-backend 3000:3000; echo "reconnecting..."; sleep 1; done
+
+=> ws port forward
+
+while true; do kubectl -n lovable-system port-forward svc/ws-server 4042:4042; echo "reconnecting..."; sleep 1; done
+
+star the web 
+cd /home/jitendar/lovable/apps/web && bun dev
+
+//start the service
+kubectl apply -f deploy/orchestrator.
+kubectl apply -f deploy/ws-server.yaml
+kubectl apply -f deploy/primary-backend.yaml
+kubectl apply -f deploy/reaper-cronjob.yaml
+
+
+
+
+NOT NECESESSARY DO IT WHEN THE IMAGE IS CHANGS;
+
+// if any image is changed and even if you load it into the kind the it wnat work 
+=> reason = > pins the image as lovable-orchestrator:latest. That string never changes. kubectl apply is declarative: it diffs the spec you're submitting against the spec that's live, and acts only on differences. Same tag string in, same tag string already there → no diff → no new pod. Kubernetes has no visibility into the fact that the bytes behind :latest are now a different build. This is the standard :latest trap — the tag is a name, not a version.
+(SOME DIFF PROBEML OF THE SAME TAG IF TAGE IS SMAE EVEN CODE CHANGES IT WANT WE RUN THE CODE SO WE DO IT ;)
+
+kubectl -n lovable-system rollout restart deploy/orchestrator
+
+kubectl -n lovable-system rollout status deploy/orchestrator
+kubectl -n lovable-system rollout status deploy/ws-server
+kubectl -n lovable-system rollout status deploy/primary-backend   // do it for the reapr and any other also ;

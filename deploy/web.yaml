@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: web, namespace: lovable-system }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: web } }
+  template:
+    metadata: { labels: { app: web } }
+    spec:
+      containers:
+        - name: web
+          image: ${IMAGE_REGISTRY}/lovable-web:${IMAGE_TAG}
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3001 }]
+          env:
+            # served to the browser at /config.js → window.__APP_CONFIG__. Public URLs through
+            # Caddy. WEB_API_URL being set also flips the server into prod mode (no HMR, no
+            # kubectl port-forward — the iframe uses the preview subdomain directly).
+            - { name: WEB_API_URL, value: "https://api.${DOMAIN}" }
+            - { name: WEB_WS_URL, value: "wss://ws.${DOMAIN}" }
+            # literal {id} is substituted per project in the browser
+            - { name: WEB_PREVIEW_TEMPLATE, value: "https://{id}.preview.${DOMAIN}" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: web, namespace: lovable-system }
+spec:
+  selector: { app: web }
+  ports: [{ port: 3001, targetPort: 3001 }]

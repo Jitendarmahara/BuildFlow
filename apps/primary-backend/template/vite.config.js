@@ -14,6 +14,8 @@ export default defineConfig({
     // events don't cross that boundary reliably, so native watching misses every change and
     // HMR never fires. Poll the filesystem instead — the only way to get live updates here.
     watch: { usePolling: true, interval: 300 },
-    // Behind Caddy's TLS you may also need: hmr: { clientPort: 443, protocol: "wss" }
+    // The preview is served over HTTPS at {id}.preview.<domain> through Caddy, so the HMR
+    // client must dial back over wss on 443 (not ws on 5173) or hot-reload never connects.
+    hmr: { clientPort: 443, protocol: "wss" },
   },
 });

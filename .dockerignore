@@ -8,3 +8,4 @@ agent-workspace
 agent-workspace-worktrees
 .env
 **/.env
+deploy/config.env

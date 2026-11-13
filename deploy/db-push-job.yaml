@@ -1,0 +1,20 @@
+# One-shot: create the tables in the in-cluster Postgres. Uses the primary-backend image
+# (it already contains the repo + Prisma). Re-runnable — `prisma db push` is idempotent.
+# Delete the old Job before re-applying: kubectl -n lovable-system delete job db-push --ignore-not-found
+apiVersion: batch/v1
+kind: Job
+metadata: { name: db-push, namespace: lovable-system }
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-push
+          image: ${IMAGE_REGISTRY}/lovable-primary-backend:${IMAGE_TAG}
+          imagePullPolicy: IfNotPresent
+          workingDir: /app/packages/db
+          command: ["sh", "-c", "bunx prisma db push"]
+          envFrom:
+            # provides DATABASE_URL (prisma reads it from the env)
+            - secretRef: { name: backend-secrets }
