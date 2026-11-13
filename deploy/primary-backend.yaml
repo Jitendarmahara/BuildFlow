@@ -9,12 +9,15 @@ spec:
     spec:
       containers:
         - name: primary-backend
-          image: docker.io/library/lovable-primary-backend:latest
+          image: ${IMAGE_REGISTRY}/lovable-primary-backend:${IMAGE_TAG}
           imagePullPolicy: IfNotPresent
           ports: [{ containerPort: 3000 }]
           env:
             # orchestrator Service is in the same namespace → short name resolves
             - { name: ORCHESTRATOR_URL, value: "http://orchestrator:5000" }
+            # used by GET /internal/allow-tls (Caddy on-demand TLS guard) to decide which
+            # hostnames we'll mint certs for
+            - { name: PUBLIC_DOMAIN, value: "${DOMAIN}" }
           envFrom:
             # DATABASE_URL + AWS_* + JWT_SECRET
             - secretRef: { name: backend-secrets }

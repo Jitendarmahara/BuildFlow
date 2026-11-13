@@ -9,7 +9,6 @@ type SaveMessageInput = {
   toolCallId?: string;
   args?: unknown;
   result?: unknown;
-  commitSha?: string;
   taskId?: string;
 };
 

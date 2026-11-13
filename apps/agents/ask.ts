@@ -9,8 +9,8 @@ export function askUser(question:string , options?:string[]):Promise<string>{
     return new Promise<string>((resolve)=>{
         pending.set(id , resolve);
         setTimeout(()=>{
-            if(pending.delete(id)) resolve("no anser - proceed with your best default")
-        } , 100000)
+            if(pending.delete(id)) resolve("no answer — proceed with your best default")
+        } , 600000)
     })
 }
 

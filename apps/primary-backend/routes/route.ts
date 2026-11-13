@@ -13,6 +13,21 @@ const router = Router();
 // load the template files once at boot
 const filecontent = await loadTemplateFiles();
 
+// Caddy on-demand TLS "ask" hook. Before Caddy issues a cert for an SNI it GETs this with
+// ?domain=<host>; a 2xx means "mint it". We only allow our own hostnames so a stranger pointing
+// their domain at our LoadBalancer can't make us burn Let's Encrypt quota on their behalf.
+const PUBLIC_DOMAIN = process.env.PUBLIC_DOMAIN ?? "";
+router.get("/internal/allow-tls", (req, res) => {
+  const host = String(req.query.domain ?? "");
+  const ok =
+    !!PUBLIC_DOMAIN &&
+    (host === `app.${PUBLIC_DOMAIN}` ||
+      host === `api.${PUBLIC_DOMAIN}` ||
+      host === `ws.${PUBLIC_DOMAIN}` ||
+      host.endsWith(`.preview.${PUBLIC_DOMAIN}`));
+  return res.sendStatus(ok ? 200 : 403);
+});
+
 const signupSchema = z.object({
   email: z.email(),
   password: z.string().min(8),

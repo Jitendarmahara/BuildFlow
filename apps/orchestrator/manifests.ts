@@ -1,4 +1,4 @@
-import { SIDECAR_PORT , VITE_PORT , IMAGE_REGISTRY , PROJECTS_NAMESPACE } from "./config";
+import { SIDECAR_PORT , VITE_PORT , IMAGE_REGISTRY , IMAGE_TAG , PROJECTS_NAMESPACE, FLUSH_PORT } from "./config";
 export function pvcManifest(projectId: string){
     return {
         apiVersion: "v1",
@@ -34,7 +34,7 @@ export function deploymentManifest(projectId: string , replicas: number){
                     containers: [
                         {
                             name: "agent",
-                            image: `${IMAGE_REGISTRY}/lovable-agent:latest`,
+                            image: `${IMAGE_REGISTRY}/lovable-agent:${IMAGE_TAG}`,
                             imagePullPolicy: "IfNotPresent",
                             env: [
                                 {name: "PROJECT_ID" , value : projectId},
@@ -49,14 +49,14 @@ export function deploymentManifest(projectId: string , replicas: number){
                         },
                         {
                             name:"preview-build",
-                            image:`${IMAGE_REGISTRY}/lovable-preview-build:latest`,
+                            image:`${IMAGE_REGISTRY}/lovable-preview-build:${IMAGE_TAG}`,
                             imagePullPolicy: "IfNotPresent",
                             ports : [{containerPort: VITE_PORT}],
                             volumeMounts: [worksapce],
                         },
                         {
                             name: "storage-sidecar",
-                            image : `${IMAGE_REGISTRY}/lovable-sidecar:latest`,
+                            image : `${IMAGE_REGISTRY}/lovable-sidecar:${IMAGE_TAG}`,
                             imagePullPolicy: "IfNotPresent",
                             env: [{name: "PROJECT_ID" , value : projectId}],
                             envFrom :[{secretRef: {name: "project-secrets"}}],
@@ -76,7 +76,10 @@ export function  serviceManifest(projectId:string){
         metadata : {name : `preview-${projectId}` , namespace:  PROJECTS_NAMESPACE},
         spec: {
             selector : {app : `project-${projectId}`}, // mount to this pod with this projectid
-            ports: [{port: VITE_PORT , targetPort : VITE_PORT}]
+            ports: [{name: "preview" , port: VITE_PORT , targetPort : VITE_PORT}
+                ,
+                {name: "flush" , port: FLUSH_PORT , targetPort: FLUSH_PORT}
+            ]
         }
     }
 }

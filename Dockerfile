@@ -6,6 +6,11 @@ WORKDIR /app
 COPY  . .
 
 RUN bun install --frozen-lockfile
+# APP   = which app under apps/ to run (agents, storage-sidecar, orchestrator, ws-server,
+#         primary-backend, reaper, web)
+# ENTRY = its entrypoint file; defaults to index.ts, overridden to server.ts for `web`
 ARG APP
+ARG ENTRY=index.ts
 ENV APP=$APP
-CMD ["sh" ,"-c" , "bun run apps/$APP/index.ts"]
+ENV ENTRY=$ENTRY
+CMD ["sh" ,"-c" , "bun run apps/$APP/$ENTRY"]

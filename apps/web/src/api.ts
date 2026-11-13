@@ -1,6 +1,6 @@
 import { API_URL } from "./config";
 
-const TOKEN_KEY = "lovable_token";
+const TOKEN_KEY = "buildflow_token";
 
 export const auth = {
   get token() {

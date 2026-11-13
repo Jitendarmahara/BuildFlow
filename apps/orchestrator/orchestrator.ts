@@ -1,9 +1,12 @@
 // boots the pods ;
-import { FIELD_MANAGER } from "./config";
+import { FIELD_MANAGER, FLUSH_PORT, PROJECTS_NAMESPACE } from "./config";
 import {objectApi} from "./k8s"
 import { pvcManifest , serviceManifest , deploymentManifest} from "./manifests"
 import {PatchStrategy , type KubernetesObject}from "@kubernetes/client-node"
 const NOT_FOUND = 404;
+// an unbounded fetch here hangs the reaper Job, and concurrencyPolicy Forbid then
+// blocks every later tick from sleeping or archiving anything
+const FLUSH_TIMEOUT_MS = 120_000;
 
 // this .patch make ths ssa (server side apply
 // create-if-absetn , converge-if-diriged basically also doing hte idempotent(kind of thing)
@@ -33,7 +36,16 @@ export async function bootPod(projectId: string): Promise<void>{
     await apply(serviceManifest(projectId));
 }
 
+async function  flushProject(projectId:string):Promise<void> {
+    const url =  `http://preview-${projectId}.${PROJECTS_NAMESPACE}.svc.cluster.local:${FLUSH_PORT}/flush`;
+    const res = await fetch(url , {method : "POST" , signal: AbortSignal.timeout(FLUSH_TIMEOUT_MS)});
+    if(!res.ok){
+        throw new Error("flush failed ")
+    }
+}
+
 export async function sleepPod(projectId: string) : Promise<void>{
+    await flushProject(projectId);
     await apply(deploymentManifest(projectId ,0));
 }
 

@@ -13,7 +13,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: reaper
-              image: docker.io/library/lovable-reaper:latest
+              image: ${IMAGE_REGISTRY}/lovable-reaper:${IMAGE_TAG}
               imagePullPolicy: IfNotPresent
               env:
                 - { name: ORCHESTRATOR_URL, value: "http://orchestrator:5000" }

@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
         - name: ws-server
-          image: docker.io/library/lovable-ws-server:latest
+          image: ${IMAGE_REGISTRY}/lovable-ws-server:${IMAGE_TAG}
           imagePullPolicy: IfNotPresent
           ports: [{ containerPort: 4042 }]
 ---

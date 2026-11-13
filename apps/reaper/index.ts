@@ -1,16 +1,4 @@
 import { client } from "@repo/db/client";
-async function ensureDb() {
-  for (let i = 0; ; i++) {
-    try { await client.$queryRaw`SELECT 1`; return; }
-    catch (e) {
-      if (i >= 5) throw e;
-      await Bun.sleep(500 * (i + 1));                 
-    }
-  }
-}
-await ensureDb();
-
-
 const IDLE_MS = Number(process.env.IDLE_MINUTES ?? 15) * 60_000;
 const ARCHIVE_MS = Number(process.env.ARCHIVE_MINUTES ?? 60) * 60_000 ; // 24hours 
 const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL ?? "http://orchestrator:5000";

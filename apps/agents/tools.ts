@@ -185,7 +185,7 @@ export const tools: OpenAI.ChatCompletionTool[] = [
     function: {
       name: "ask_user",
       description:
-        "Ask the user a clarifying question ONLY when you genuinely need their input to proceed (e.g. a truly ambiguous requirement). Blocks until they answer. Provide 'options' for a multiple-choice question. Use sparingly — prefer sensible defaults over asking.",
+        "Ask the user a clarifying question. Use it when the request refers to a specific value the user didn't state (which color? what name? how big?) — guessing wastes a build turn — or when a consequential decision is a real fork in scope. Blocks until they answer. Provide 'options' for one-click answering. Don't ask about choices the user explicitly left to your judgment.",
       parameters: {
         type: "object",
         properties: {

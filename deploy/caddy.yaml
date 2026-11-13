@@ -1,0 +1,86 @@
+# Caddy = the one public entrypoint. A single LoadBalancer IP fronts the whole platform and
+# Caddy terminates TLS (auto-issued via Let's Encrypt) and routes by hostname:
+#   app.<domain>      -> web UI
+#   api.<domain>      -> primary-backend (REST)
+#   ws.<domain>       -> ws-server (WebSocket)
+#   *.preview.<domain>-> the matching project pod's Vite server (per-subdomain cert on demand,
+#                        gated by primary-backend's /internal/allow-tls so we only mint certs
+#                        for real project subdomains)
+# Point DNS A records for app, api, ws, and *.preview at this Service's external IP.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: caddy-data, namespace: lovable-system }
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: caddy-config, namespace: lovable-system }
+data:
+  Caddyfile: |
+    {
+      # use Let's Encrypt (anonymous account; no email needed)
+      acme_ca https://acme-v02.api.letsencrypt.org/directory
+      # on-demand certs (for the *.preview.* subdomains) are only issued for hostnames the
+      # backend approves, so a stranger can't make us mint certs for their domain
+      on_demand_tls {
+        ask http://primary-backend.lovable-system.svc.cluster.local:3000/internal/allow-tls
+      }
+    }
+
+    app.${DOMAIN} {
+      reverse_proxy web.lovable-system.svc.cluster.local:3001
+    }
+
+    api.${DOMAIN} {
+      reverse_proxy primary-backend.lovable-system.svc.cluster.local:3000
+    }
+
+    ws.${DOMAIN} {
+      reverse_proxy ws-server.lovable-system.svc.cluster.local:4042
+    }
+
+    *.preview.${DOMAIN} {
+      tls {
+        on_demand
+      }
+      # capture the first label (the projectId) from the Host, route to that project's Service
+      @proj header_regexp proj Host ^([^.]+)\.preview\.
+      reverse_proxy @proj preview-{http.regexp.proj.1}.projects.svc.cluster.local:5173
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: caddy, namespace: lovable-system }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: caddy } }
+  template:
+    metadata: { labels: { app: caddy } }
+    spec:
+      containers:
+        - name: caddy
+          image: caddy:2.8
+          args: ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
+          ports:
+            - { containerPort: 80 }
+            - { containerPort: 443 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/caddy }
+            - { name: data, mountPath: /data } # issued certs persist here across restarts
+      volumes:
+        - name: config
+          configMap: { name: caddy-config }
+        - name: data
+          persistentVolumeClaim: { claimName: caddy-data }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: caddy, namespace: lovable-system }
+spec:
+  type: LoadBalancer
+  selector: { app: caddy }
+  ports:
+    - { name: http, port: 80, targetPort: 80 }
+    - { name: https, port: 443, targetPort: 443 }
