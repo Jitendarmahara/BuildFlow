@@ -10,14 +10,14 @@ source deploy/config.env
 
 # --- derived values (nothing else references the raw registry/DB strings) ---
 export IMAGE_REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}"
-export IMAGE_TAG DOMAIN
+export IMAGE_TAG DOMAIN LB_IP
 DATABASE_URL="postgresql://lovable:${DB_PASSWORD}@postgres.lovable-system.svc.cluster.local:5432/lovable?sslmode=disable"
 
 echo ">> context: $(kubectl config current-context)"
 read -r -p ">> deploy to THIS context? [y/N] " ok; [ "$ok" = "y" ] || { echo "aborted"; exit 1; }
 
 # render only our placeholders (leave Caddy's {http...} / regexp braces untouched)
-render() { envsubst '${IMAGE_REGISTRY} ${IMAGE_TAG} ${DOMAIN}' < "$1"; }
+render() { envsubst '${IMAGE_REGISTRY} ${IMAGE_TAG} ${DOMAIN} ${LB_IP}' < "$1"; }
 apply()  { render "$1" | kubectl apply -f - ; }
 secret() { kubectl create secret generic "$@" --dry-run=client -o yaml | kubectl apply -f - ; }
 
