@@ -80,6 +80,8 @@ kind: Service
 metadata: { name: caddy, namespace: lovable-system }
 spec:
   type: LoadBalancer
+  # pin to the reserved static IP so the nip.io hostname never changes across redeploys
+  loadBalancerIP: ${LB_IP}
   selector: { app: caddy }
   ports:
     - { name: http, port: 80, targetPort: 80 }

@@ -37,24 +37,40 @@ Everything is driven from **one file**, `deploy/config.env`, and **two scripts**
 
 Install `gcloud`, `kubectl`, `docker`, `bun`. You need:
 - a GCP project (you have `console.cloud.google.com`),
-- a **GKE cluster** (create it in the console — a small standard/autopilot cluster is fine),
-- a **domain** you control (to point DNS at the load balancer),
 - your **S3 bucket + AWS creds** and your **DeepSeek API key** (same ones you use locally).
+- **No domain required** — we use `nip.io` (a free wildcard-DNS service that maps
+  `<anything>.<ip>.nip.io` → `<ip>`), so a reserved static IP is all you need for real HTTPS.
 
 ```bash
+REGION=asia-south1        # Artifact Registry + static IP region (Mumbai; pick your nearest)
+ZONE=asia-south1-a        # cluster zone
+PROJECT=YOUR_PROJECT_ID
+
 # auth + target your project
 gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
+gcloud config set project "$PROJECT"
+gcloud services enable container.googleapis.com artifactregistry.googleapis.com
 
-# create the Artifact Registry repo (name must match AR_REPO in config.env)
+# Artifact Registry repo (name must match AR_REPO in config.env)
 gcloud artifacts repositories create lovable \
-  --repository-format=docker --location=us-central1 \
-  --description="lovable images"
+  --repository-format=docker --location="$REGION" --description="lovable images"
 
-# point kubectl at your GKE cluster
-gcloud container clusters get-credentials YOUR_CLUSTER \
-  --region us-central1 --project YOUR_PROJECT_ID
-kubectl config current-context    # confirm it's the GKE cluster
+# a cheap, always-on cluster: 1 Spot node, small machine, standard disk
+gcloud container clusters create lovable \
+  --zone "$ZONE" --num-nodes 1 --machine-type e2-standard-2 \
+  --spot --disk-type pd-standard --disk-size 50
+gcloud container clusters get-credentials lovable --zone "$ZONE"
+kubectl get nodes                 # confirm 1 node, STATUS Ready
+
+# reserve the static IP the LoadBalancer will pin to (this becomes your nip.io host)
+gcloud compute addresses create lovable-ip --region "$REGION"
+gcloud compute addresses describe lovable-ip --region "$REGION" --format='value(address)'
+#   -> put this IP in config.env as LB_IP, and DOMAIN=<ip>.nip.io
+
+# let the GKE node pull images from Artifact Registry (avoids ImagePullBackOff)
+NODE_SA=$(gcloud iam service-accounts list --format='value(email)' --filter='Compute Engine default')
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${NODE_SA}" --role=roles/artifactregistry.reader --condition=None
 ```
 
 ## 1. Configure
@@ -81,19 +97,23 @@ It prints the Caddy LoadBalancer IP at the end (give it a minute to be assigned)
 
 ## 4. DNS
 
-Create these records at your DNS provider, all pointing at the Caddy LB IP:
+**Using nip.io (default): nothing to do.** `nip.io` already resolves every
+`*.<LB_IP>.nip.io` name to your IP, and because the LoadBalancer is pinned to the reserved
+`LB_IP`, the hostnames in `config.env` already point at it. Skip straight to opening the app.
 
-| Record            | Type | Value         |
-|-------------------|------|---------------|
-| `app.DOMAIN`      | A    | <Caddy LB IP> |
-| `api.DOMAIN`      | A    | <Caddy LB IP> |
-| `ws.DOMAIN`       | A    | <Caddy LB IP> |
-| `*.preview.DOMAIN`| A    | <Caddy LB IP> |
+**Using your own domain instead:** create these A records, all pointing at `LB_IP`:
 
-Once DNS propagates, Caddy issues Let's Encrypt certs on first request. Open:
+| Record            | Type | Value   |
+|-------------------|------|---------|
+| `app.DOMAIN`      | A    | <LB_IP> |
+| `api.DOMAIN`      | A    | <LB_IP> |
+| `ws.DOMAIN`       | A    | <LB_IP> |
+| `*.preview.DOMAIN`| A    | <LB_IP> |
+
+Caddy issues Let's Encrypt certs on first request. Open:
 
 ```
-https://app.DOMAIN
+https://app.DOMAIN            # nip.io: https://app.<LB_IP>.nip.io
 ```
 Sign up → type a prompt → watch it build live → the preview loads from
 `https://<projectId>.preview.DOMAIN`.
