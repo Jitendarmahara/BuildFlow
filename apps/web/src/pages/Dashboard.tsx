@@ -15,6 +15,7 @@ export function Dashboard() {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [prompt, setPrompt] = useState("");
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -40,6 +41,22 @@ export function Dashboard() {
   const open = async (p: Project) => {
     // waking (if slept/archived) happens inside the project view on load
     navigate(`/project/${p.id}`);
+  };
+
+  const del = async (e: React.MouseEvent, p: Project) => {
+    e.stopPropagation(); // don't open the project when clicking delete
+    if (deleting) return;
+    if (!confirm(`Delete "${p.title || "Untitled"}"? This permanently removes its code and history.`)) return;
+    setDeleting(p.id);
+    setErr("");
+    try {
+      await api.deleteProject(p.id);
+      setProjects((cur) => (cur ? cur.filter((x) => x.id !== p.id) : cur));
+    } catch {
+      setErr("Could not delete project. Try again.");
+    } finally {
+      setDeleting(null);
+    }
   };
 
   return (
@@ -73,6 +90,14 @@ export function Dashboard() {
                 <div className="top">
                   <h3>{p.title || "Untitled"}</h3>
                   <span className={`badge ${p.status}`}>{p.status}</span>
+                  <button
+                    className="proj-del"
+                    title="Delete project"
+                    onClick={(e) => del(e, p)}
+                    disabled={deleting === p.id}
+                  >
+                    {deleting === p.id ? <span className="spinner" /> : "✕"}
+                  </button>
                 </div>
                 <div className="time">Updated {timeAgo(p.updatedAt)}</div>
               </div>

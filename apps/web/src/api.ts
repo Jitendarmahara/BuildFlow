@@ -68,6 +68,9 @@ export const api = {
   async openProject(id: string): Promise<void> {
     await req(`/projects/${id}/open`, { method: "POST" });
   },
+  async deleteProject(id: string): Promise<void> {
+    await req(`/projects/${id}`, { method: "DELETE" });
+  },
   async getMessages(id: string): Promise<Message[]> {
     const { message } = await req(`/projects/${id}/messages`);
     return message ?? [];

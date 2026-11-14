@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Buildflow — build apps by chatting</title>
     <link rel="stylesheet" href="./src/styles.css" />
-    <!-- runtime config (API/WS/preview hosts) injected by server.ts from container env.
-         classic script → runs before the deferred module bundle below -->
-    <script src="/config.js"></script>
+    <!-- server.ts injects `<script>window.__APP_CONFIG__ = {…}</script>` here at serve time
+         (prod) so the bundle reads the right API/WS/preview hosts; dev uses config.ts fallbacks. -->
   </head>
   <body>
     <div id="root"></div>

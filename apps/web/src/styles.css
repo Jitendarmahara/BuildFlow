@@ -138,8 +138,16 @@ input, textarea { font-family: inherit; }
   padding: 18px; cursor: pointer; transition: border-color 0.15s;
 }
 .proj-card:hover { border-color: var(--accent); }
-.proj-card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.proj-card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
 .proj-card h3 { margin: 0; font-size: 15px; line-height: 1.3; }
+.proj-card .top .badge { margin-left: auto; }
+.proj-del {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
+  background: transparent; border: 1px solid transparent; color: var(--text-faint);
+  font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+}
+.proj-del:hover { color: var(--danger); border-color: #7f1d1d; background: #2a0a0a; }
+.proj-del:disabled { cursor: default; opacity: .6; }
 .proj-card .time { color: var(--text-faint); font-size: 12px; }
 .empty { text-align: center; color: var(--text-faint); padding: 60px 0; }
 

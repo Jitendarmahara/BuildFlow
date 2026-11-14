@@ -4,7 +4,7 @@ import Jwt from "jsonwebtoken";
 import { z } from "zod";
 import { loadTemplateFiles } from "../template";
 import { Awsclient } from "@repo/storage/Awsclient";
-import { bootpod } from "../orchestrator";
+import { bootpod, killproject } from "../orchestrator";
 import { Middleware } from "../auth/auth";
 import { JWT_SECRET } from "../config";
 
@@ -203,4 +203,48 @@ router.post("/projects/:id/open" , Middleware , async(req , res)=>{
     return res.status(500).json({error:"falied to open project"})
   }
 })
+
+// Delete a project for good: tear down its k8s resources, wipe its S3 objects, then remove the DB
+// row (its messages + file rows cascade via the schema's onDelete: Cascade). k8s + S3 cleanup are
+// best-effort so a project that's sleeping, archived, or half-provisioned can still be deleted.
+router.delete("/projects/:id", Middleware, async (req, res) => {
+  const { id } = req.params;
+  if (typeof id !== "string") {
+    return res.status(400).json({ error: "id need to be a string" });
+  }
+  const owns = await client.project.findFirst({
+    where: { id, userId: req.userId },
+    select: { id: true },
+  });
+  if (!owns) {
+    return res.status(404).json({ error: "project not found" });
+  }
+
+  // 1) tear down any live k8s resources (orchestrator treats a 404 as success)
+  try {
+    await killproject(id);
+  } catch (e) {
+    console.error(`delete: killproject failed for ${id}`, e);
+  }
+
+  // 2) wipe every S3 object under project/<id>/ (template files + anything the agent wrote)
+  try {
+    const prefix = `project/${id}/`;
+    let token: string | undefined = undefined;
+    do {
+      const page: any = await Awsclient.list({ prefix, maxKeys: 1000, continuationToken: token });
+      const keys: string[] = (page?.contents ?? []).map((o: any) => o?.key).filter(Boolean);
+      await Promise.allSettled(keys.map((k: string) => Awsclient.delete(k)));
+      token = page?.isTruncated ? page?.nextContinuationToken : undefined;
+    } while (token);
+  } catch (e) {
+    console.error(`delete: S3 cleanup failed for ${id}`, e);
+  }
+
+  // 3) remove the DB project (messages + files cascade)
+  await client.project.delete({ where: { id } });
+
+  return res.json({ ok: true });
+});
+
 export default router;

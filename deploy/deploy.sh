@@ -38,6 +38,7 @@ secret backend-secrets -n lovable-system \
   --from-literal=AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
   --from-literal=AWS_REGION="${AWS_REGION}" \
   --from-literal=AWS_BUCKET="${AWS_BUCKET}" \
+  --from-literal=AWS_ENDPOINT="${AWS_ENDPOINT:-}" \
   --from-literal=JWT_SECRET="${JWT_SECRET}"
 
 secret project-secrets -n projects \
@@ -45,7 +46,8 @@ secret project-secrets -n projects \
   --from-literal=AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
   --from-literal=AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
   --from-literal=AWS_REGION="${AWS_REGION}" \
-  --from-literal=AWS_BUCKET="${AWS_BUCKET}"
+  --from-literal=AWS_BUCKET="${AWS_BUCKET}" \
+  --from-literal=AWS_ENDPOINT="${AWS_ENDPOINT:-}"
 
 secret agent-secrets -n projects \
   --from-literal=DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}"
